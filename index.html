@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Share Page</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      min-height: 100vh;
+      background: #1a1a1a;
+      color: #e0e0e0;
+      font-family: system-ui, -apple-system, sans-serif;
+      padding: 2rem;
+    }
+    h1 { font-size: 1.5rem; font-weight: 400; margin-bottom: 2rem; color: #a0a0a0; }
+    h2 { font-size: 1rem; font-weight: 500; margin: 1.5rem 0 0.75rem; color: #707070; text-transform: uppercase; letter-spacing: 0.05em; }
+    .section { margin-bottom: 2rem; }
+    .empty { color: #707070; font-size: 0.9rem; padding: 0.5rem 0; }
+    ul { list-style: none; }
+    li { padding: 0.4rem 0; }
+    a {
+      color: #85B7EB;
+      text-decoration: none;
+      font-size: 0.95rem;
+    }
+    a:hover { text-decoration: underline; }
+    .badge {
+      display: inline-block;
+      font-size: 0.7rem;
+      padding: 2px 6px;
+      border-radius: 4px;
+      margin-left: 0.5rem;
+      vertical-align: middle;
+    }
+    .badge-temp { background: #633806; color: #EF9F27; }
+    .badge-persist { background: #085041; color: #5DCAA5; }
+  </style>
+</head>
+<body>
+  <h1>Share Page</h1>
+
+  <div class="section">
+    <h2>Persistent</h2>
+    <p class="empty">No items</p>
+  </div>
+
+  <div class="section">
+    <h2>Temporary</h2>
+    <p class="empty">No items</p>
+  </div>
+</body>
+</html>
