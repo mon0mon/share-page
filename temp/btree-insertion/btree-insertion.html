@@ -1,0 +1,1053 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>B-Tree 삽입 시각화</title>
+<style>
+:root {
+  --p: #e0e0e0;
+  --s: #a0a0a0;
+  --t: #707070;
+  --bg2: #2a2a2a;
+  --b: #404040;
+  --color-text-primary: #e0e0e0;
+  --color-text-secondary: #a0a0a0;
+  --color-text-tertiary: #707070;
+  --color-text-info: #85B7EB;
+  --color-text-danger: #F09595;
+  --color-text-success: #97C459;
+  --color-text-warning: #EF9F27;
+  --color-background-primary: #1a1a1a;
+  --color-background-secondary: #2a2a2a;
+  --color-background-tertiary: #111111;
+  --color-background-info: #0C447C;
+  --color-background-danger: #791F1F;
+  --color-background-success: #27500A;
+  --color-background-warning: #633806;
+  --color-border-primary: rgba(255,255,255,0.4);
+  --color-border-secondary: rgba(255,255,255,0.3);
+  --color-border-tertiary: rgba(255,255,255,0.15);
+  --font-sans: system-ui, -apple-system, sans-serif;
+  --font-serif: Georgia, serif;
+  --font-mono: ui-monospace, monospace;
+  --border-radius-md: 8px;
+  --border-radius-lg: 12px;
+  --border-radius-xl: 16px;
+}
+
+*, *::before, *::after { box-sizing: inherit; }
+
+body {
+  margin: 0;
+  padding: 1rem;
+  font-family: var(--font-sans);
+  background: var(--color-background-primary);
+  color: var(--color-text-primary);
+  box-sizing: border-box;
+  min-height: 100vh;
+}
+
+button {
+  background: transparent;
+  border: 0.5px solid var(--color-border-secondary);
+  border-radius: var(--border-radius-md);
+  color: var(--color-text-primary);
+  padding: 6px 14px;
+  font-size: 14px;
+  cursor: pointer;
+  font-family: var(--font-sans);
+  transition: background 0.15s, transform 0.1s;
+  white-space: nowrap;
+}
+button:hover { background: var(--color-background-secondary); }
+button:active { transform: scale(0.98); }
+button:disabled { opacity: 0.35; cursor: not-allowed; }
+button:disabled:active { transform: none; }
+
+button.btn-primary {
+  border-color: var(--color-border-primary);
+  background: var(--color-background-secondary);
+}
+button.btn-active {
+  background: var(--color-background-warning);
+  border-color: #EF9F27;
+  color: #FAC775;
+}
+
+input[type="text"], input[type="number"] {
+  height: 36px;
+  background: var(--color-background-primary);
+  border: 0.5px solid var(--color-border-tertiary);
+  border-radius: var(--border-radius-md);
+  color: var(--color-text-primary);
+  padding: 0 10px;
+  font-size: 14px;
+  font-family: var(--font-sans);
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+input:hover { border-color: var(--color-border-secondary); }
+input:focus {
+  border-color: var(--color-border-primary);
+  box-shadow: 0 0 0 2px rgba(255,255,255,0.1);
+}
+
+/* ── 레이아웃 ── */
+.app-container {
+  max-width: 960px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+/* ── 헤더 ── */
+.title-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+.title {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  margin: 0;
+}
+.subtitle {
+  font-size: 13px;
+  color: var(--color-text-tertiary);
+}
+
+/* ── 컨트롤 바 ── */
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.controls-divider {
+  width: 1px;
+  height: 20px;
+  background: var(--color-border-tertiary);
+  margin: 0 4px;
+  flex-shrink: 0;
+}
+.step-counter {
+  font-size: 13px;
+  color: var(--color-text-tertiary);
+  min-width: 70px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+/* ── 진행 바 ── */
+.progress-bar-wrap {
+  height: 3px;
+  background: var(--color-border-tertiary);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.progress-bar-fill {
+  height: 100%;
+  background: #AFA9EC;
+  border-radius: 2px;
+  transition: width 0.3s ease;
+  width: 0%;
+}
+
+/* ── 시각화 패널 ── */
+.viz-panel {
+  background: var(--color-background-tertiary);
+  border: 0.5px solid var(--color-border-tertiary);
+  border-radius: var(--border-radius-lg);
+  overflow: hidden;
+  position: relative;
+  min-height: 340px;
+}
+#tree-svg {
+  display: block;
+  width: 100%;
+}
+
+.empty-state {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  pointer-events: none;
+}
+.empty-state-icon { font-size: 32px; opacity: 0.3; }
+.empty-state-text { font-size: 13px; color: var(--color-text-tertiary); }
+
+/* ── 단계 설명 패널 ── */
+.step-panel {
+  background: var(--color-background-secondary);
+  border: 0.5px solid var(--color-border-tertiary);
+  border-radius: var(--border-radius-lg);
+  padding: 14px 18px;
+  min-height: 76px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.step-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-tertiary);
+}
+.step-badge-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.step-title {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--color-text-primary);
+  margin: 0;
+}
+.step-desc {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  line-height: 1.55;
+  white-space: pre-line;
+}
+
+/* 배지 */
+.step-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.badge-insert { background: var(--color-background-info);    color: var(--color-text-info);    border: 0.5px solid rgba(133,183,235,0.3); }
+.badge-split  { background: var(--color-background-danger);  color: var(--color-text-danger);  border: 0.5px solid rgba(240,149,149,0.3); }
+.badge-promote{ background: var(--color-background-warning); color: var(--color-text-warning); border: 0.5px solid rgba(239,159,39,0.3); }
+.badge-grow   { background: var(--color-background-success); color: var(--color-text-success); border: 0.5px solid rgba(151,196,89,0.3); }
+.badge-init   { background: #222; color: var(--color-text-tertiary); border: 0.5px solid var(--color-border-tertiary); }
+.badge-value  { background: #222; color: #AFA9EC; border: 0.5px solid rgba(175,169,236,0.3); font-family: var(--font-mono); }
+
+/* ── 범례 ── */
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  padding: 4px 0;
+}
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+.legend-swatch {
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+/* ── 사용자 입력 패널 ── */
+.input-panel {
+  background: var(--color-background-secondary);
+  border: 0.5px solid var(--color-border-tertiary);
+  border-radius: var(--border-radius-lg);
+  padding: 14px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.input-panel-title {
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.input-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.input-hint {
+  font-size: 12px;
+  color: var(--color-text-tertiary);
+}
+
+/* ── 키보드 힌트 ── */
+.keyboard-hint {
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.kbd {
+  display: inline-block;
+  background: #222;
+  border: 0.5px solid var(--color-border-tertiary);
+  border-radius: 3px;
+  padding: 1px 5px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--color-text-secondary);
+}
+</style>
+</head>
+<body>
+<div class="app-container">
+
+  <!-- 헤더 -->
+  <div>
+    <div class="title-row">
+      <h1 class="title">B-Tree 삽입 시각화</h1>
+      <span class="subtitle">차수 3 · 노드당 최대 키 2개</span>
+    </div>
+
+    <!-- 컨트롤 -->
+    <div class="controls">
+      <button id="btn-reset">↺ 초기화</button>
+      <div class="controls-divider"></div>
+      <button id="btn-prev" disabled>← 이전</button>
+      <button id="btn-next">다음 →</button>
+      <div class="controls-divider"></div>
+      <button id="btn-autoplay" class="btn-primary">▶ 자동 재생</button>
+      <div style="flex:1; min-width:4px"></div>
+      <span class="step-counter" id="step-counter">1 / 1</span>
+    </div>
+
+    <!-- 진행 바 -->
+    <div class="progress-bar-wrap" style="margin-top:10px">
+      <div class="progress-bar-fill" id="progress-fill"></div>
+    </div>
+  </div>
+
+  <!-- 트리 시각화 -->
+  <div class="viz-panel" id="viz-panel">
+    <svg id="tree-svg" viewBox="0 0 920 340" preserveAspectRatio="xMidYMid meet"></svg>
+    <div class="empty-state" id="empty-state">
+      <div class="empty-state-icon">🌱</div>
+      <div class="empty-state-text">트리가 비어 있습니다. 다음 버튼을 눌러 시작하세요.</div>
+    </div>
+  </div>
+
+  <!-- 단계 설명 -->
+  <div class="step-panel">
+    <div class="step-label">현재 단계</div>
+    <div class="step-badge-row" id="step-badge-row"></div>
+    <div class="step-title" id="step-title">초기 상태</div>
+    <div class="step-desc" id="step-desc">삽입할 값: [10, 20, 5, 6, 12, 30, 7, 17] — 다음 버튼을 눌러 삽입을 시작하세요.</div>
+  </div>
+
+  <!-- 범례 -->
+  <div class="legend">
+    <div class="legend-item">
+      <div class="legend-swatch" style="background:#3C3489;border:1.5px solid #AFA9EC"></div>
+      <span>일반 노드</span>
+    </div>
+    <div class="legend-item">
+      <div class="legend-swatch" style="background:#085041;border:1.5px solid #5DCAA5"></div>
+      <span>삽입/수정 노드</span>
+    </div>
+    <div class="legend-item">
+      <div class="legend-swatch" style="background:#712B13;border:1.5px solid #F0997B"></div>
+      <span>분열 노드</span>
+    </div>
+    <div class="legend-item">
+      <div class="legend-swatch" style="background:#633806;border:1.5px solid #EF9F27"></div>
+      <span>승격 키 (부모)</span>
+    </div>
+    <div class="legend-item" style="margin-left:auto">
+      <span class="keyboard-hint">
+        <span><span class="kbd">←</span><span class="kbd">→</span> 탐색</span>
+        <span><span class="kbd">P</span> 재생/정지</span>
+        <span><span class="kbd">R</span> 초기화</span>
+      </span>
+    </div>
+  </div>
+
+  <!-- 사용자 입력 -->
+  <div class="input-panel">
+    <div class="input-panel-title">사용자 정의 값 삽입</div>
+    <div class="input-row">
+      <input type="number" id="custom-input" placeholder="숫자 (1–999)" style="width:140px" min="1" max="999" step="1">
+      <button id="btn-insert-custom">삽입</button>
+      <span class="input-hint">현재 트리 상태에 새 값을 삽입합니다. Enter 키도 동작합니다.</span>
+    </div>
+  </div>
+
+</div><!-- /.app-container -->
+
+<script>
+'use strict';
+
+// ─────────────────────────────────────────────────────────────────────
+// CONFIG — 전역 설정
+// ─────────────────────────────────────────────────────────────────────
+const CONFIG = {
+  ORDER: 3,                      // B-Tree 차수 (최대 자식 수)
+  MAX_KEYS: 2,                   // 노드당 최대 키 (ORDER - 1)
+  DEFAULT_VALUES: [10, 20, 5, 6, 12, 30, 7, 17],
+  AUTO_PLAY_INTERVAL: 1600,      // 자동 재생 간격(ms)
+
+  // SVG 렌더링 상수
+  NODE_CELL_W: 52,               // 키 하나당 셀 너비(px)
+  NODE_H: 36,                    // 노드 높이
+  NODE_R: 6,                     // 노드 모서리 반경
+  LEVEL_GAP: 76,                 // 레벨 간 수직 간격
+  H_GAP: 18,                     // 노드 간 수평 간격
+  PADDING: 32,                   // 캔버스 좌우/상단 여백
+
+  // 색상 팔레트
+  COLORS: {
+    normal:  { fill: '#3C3489', stroke: '#AFA9EC', text: '#CECBF6', sep: '#AFA9EC' },
+    active:  { fill: '#085041', stroke: '#5DCAA5', text: '#9FE1CB', sep: '#5DCAA5' },
+    split:   { fill: '#712B13', stroke: '#F0997B', text: '#F5C4B3', sep: '#F0997B' },
+    promote: { fill: '#633806', stroke: '#EF9F27', text: '#FAC775', sep: '#EF9F27' },
+    edge:    '#707070',
+  },
+};
+
+// ─────────────────────────────────────────────────────────────────────
+// B-Tree 데이터 구조
+// ─────────────────────────────────────────────────────────────────────
+
+let _nodeIdSeq = 0;
+const newId = () => ++_nodeIdSeq;
+
+/** 노드 생성 */
+function makeNode(keys = [], children = [], isLeaf = true) {
+  return { id: newId(), keys: [...keys], children: [...children], isLeaf };
+}
+
+/** 깊은 복사 */
+function cloneNode(n) {
+  if (!n) return null;
+  return {
+    id: n.id,
+    keys: [...n.keys],
+    children: n.children.map(cloneNode),
+    isLeaf: n.isLeaf,
+  };
+}
+
+/** 트리의 모든 노드를 배열로 수집 */
+function allNodes(n) {
+  if (!n) return [];
+  return [n, ...n.children.flatMap(allNodes)];
+}
+
+/** 노드 수 카운트 */
+function countNodes(n) {
+  if (!n) return 0;
+  return 1 + n.children.reduce((s, c) => s + countNodes(c), 0);
+}
+
+/** 트리 깊이 */
+function treeDepth(n) {
+  if (!n) return 0;
+  if (n.isLeaf || n.children.length === 0) return 1;
+  return 1 + treeDepth(n.children[0]);
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// B-Tree 삽입 알고리즘
+// ─────────────────────────────────────────────────────────────────────
+
+/**
+ * 값을 트리에 삽입하고 새 루트를 반환.
+ * changedIds 배열에 수정된 노드 ID들을 수집한다.
+ */
+function btreeInsert(root, value, changedIds) {
+  if (!root) {
+    const n = makeNode([value], [], true);
+    changedIds.push(n.id);
+    return n;
+  }
+  const newRoot = insertRec(cloneNode(root), value, changedIds);
+  // 루트 오버플로 처리 (루트를 새 빈 노드로 승격)
+  if (newRoot.keys.length > CONFIG.MAX_KEYS) {
+    const superRoot = makeNode([], [newRoot], false);
+    splitChild(superRoot, 0, changedIds);
+    changedIds.push(superRoot.id);
+    return superRoot;
+  }
+  return newRoot;
+}
+
+/**
+ * 재귀 삽입. cloneNode 이후 호출되어 직접 변경 가능.
+ * 오버플로 노드를 그대로 반환 — 상위에서 splitChild 처리.
+ */
+function insertRec(node, value, changedIds) {
+  if (node.isLeaf) {
+    // 정렬 삽입
+    let i = 0;
+    while (i < node.keys.length && node.keys[i] < value) i++;
+    node.keys.splice(i, 0, value);
+    changedIds.push(node.id);
+    return node;
+  }
+
+  // 내려갈 자식 인덱스 계산
+  let ci = node.keys.length;
+  for (let i = 0; i < node.keys.length; i++) {
+    if (value < node.keys[i]) { ci = i; break; }
+  }
+
+  // 자식을 복사 후 재귀 삽입
+  node.children[ci] = insertRec(cloneNode(node.children[ci]), value, changedIds);
+
+  // 자식 오버플로 감지 → 분열
+  if (node.children[ci].keys.length > CONFIG.MAX_KEYS) {
+    splitChild(node, ci, changedIds);
+  }
+  return node;
+}
+
+/**
+ * node.children[ci]를 분열.
+ * 중간 키를 node로 승격, 오른쪽 새 노드 생성.
+ * node는 이미 복사된 상태.
+ */
+function splitChild(node, ci, changedIds) {
+  const child = node.children[ci];               // 분열 대상
+  const mid   = Math.floor(child.keys.length / 2); // 중간 인덱스
+  const midKey = child.keys[mid];
+
+  // 오른쪽 절반 → 새 노드
+  const rightKeys     = child.keys.splice(mid + 1);  // mid+1 이후 키
+  const rightChildren = child.isLeaf ? [] : child.children.splice(mid + 1);
+  child.keys.splice(mid);                             // mid 키 제거 (왼쪽에서)
+
+  const right = makeNode(rightKeys, rightChildren, child.isLeaf);
+
+  // 부모에 승격
+  node.keys.splice(ci, 0, midKey);
+  node.children.splice(ci + 1, 0, right);
+  node.isLeaf = false;
+
+  changedIds.push(child.id, right.id);
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// 단계(Step) 빌더
+// ─────────────────────────────────────────────────────────────────────
+
+function buildSteps(values) {
+  _nodeIdSeq = 0;
+
+  const steps = [];
+
+  // 초기 상태 단계
+  steps.push({
+    tree: null,
+    title: '초기 상태',
+    desc: `삽입할 값: [${values.join(', ')}]\nB-Tree 차수 3 — 노드당 최대 2개의 키를 저장합니다.\n꽉 찬 노드에 삽입하면 분열(split)이 일어나고 중간 키가 부모로 승격됩니다.`,
+    type: 'init',
+    changedIds: [],
+    insertedValue: null,
+  });
+
+  let root = null;
+
+  for (const val of values) {
+    const prevRoot = cloneNode(root);
+
+    // 삽입 "시작" 단계 — 아직 트리 변화 없음
+    steps.push({
+      tree: cloneNode(root),
+      title: `${val} 삽입 시작`,
+      desc: `값 ${val}을(를) 트리에 삽입합니다.\n루트에서 리프까지 내려가며 올바른 위치를 찾습니다.`,
+      type: 'insert',
+      changedIds: [],
+      insertedValue: val,
+    });
+
+    // 실제 삽입
+    const changedIds = [];
+    root = btreeInsert(root, val, changedIds);
+
+    const didSplit = countNodes(root) > countNodes(prevRoot) + 1;
+
+    if (didSplit) {
+      steps.push({
+        tree: cloneNode(root),
+        title: `${val} 삽입 — 노드 분열 발생`,
+        desc: buildSplitDesc(val, root),
+        type: 'split',
+        changedIds: [...changedIds],
+        insertedValue: val,
+      });
+    } else {
+      steps.push({
+        tree: cloneNode(root),
+        title: `${val} 삽입 완료`,
+        desc: `값 ${val}이(가) 리프 노드에 삽입되었습니다.`,
+        type: 'insert',
+        changedIds: [...changedIds],
+        insertedValue: val,
+      });
+    }
+  }
+
+  return steps;
+}
+
+function buildSplitDesc(val, root) {
+  const depth = treeDepth(root);
+  if (depth <= 2) {
+    return `값 ${val} 삽입 중 노드가 꽉 차 분열이 발생했습니다.\n중간 키가 새 루트로 승격되어 트리가 한 레벨 성장했습니다.\n현재 트리 높이: ${depth}`;
+  }
+  return `값 ${val} 삽입 중 노드가 꽉 차 분열이 발생했습니다.\n노드가 둘로 나뉘고 중간 키가 부모 노드로 승격됩니다.\n현재 트리 높이: ${depth}`;
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// SVG 레이아웃 계산
+// ─────────────────────────────────────────────────────────────────────
+
+/** 노드 픽셀 너비 (키 개수 × 셀 너비) */
+function nodeW(node) {
+  return Math.max(1, node.keys.length) * CONFIG.NODE_CELL_W;
+}
+
+/**
+ * 트리 레이아웃을 계산.
+ * 반환: { positions: { [nodeId]: {x, y} }, totalW, totalH }
+ * x, y는 노드 왼쪽 상단 픽셀 좌표.
+ */
+function computeLayout(root) {
+  if (!root) return { positions: {}, totalW: 0, totalH: 0 };
+
+  const pos = {};    // nodeId → {x, y}
+  let cursor = 0;   // 리프 배치 커서
+
+  // 후위 순회로 x 좌표 할당
+  function assignX(node, depth) {
+    const ny = CONFIG.PADDING + depth * (CONFIG.NODE_H + CONFIG.LEVEL_GAP);
+
+    if (node.isLeaf || node.children.length === 0) {
+      pos[node.id] = { x: cursor, y: ny };
+      cursor += nodeW(node) + CONFIG.H_GAP;
+      return;
+    }
+
+    // 자식 먼저
+    for (const child of node.children) assignX(child, depth + 1);
+
+    // 부모는 첫 자식과 마지막 자식의 중앙
+    const firstC = node.children[0];
+    const lastC  = node.children[node.children.length - 1];
+    const leftEdge  = pos[firstC.id].x;
+    const rightEdge = pos[lastC.id].x + nodeW(lastC);
+    const cx = (leftEdge + rightEdge) / 2 - nodeW(node) / 2;
+    pos[node.id] = { x: cx, y: ny };
+  }
+
+  assignX(root, 0);
+
+  // 좌측 오프셋 보정 (음수 x 방지)
+  const minX = Math.min(...Object.values(pos).map(p => p.x));
+  const offsetX = CONFIG.PADDING - minX;
+
+  const nodes = allNodes(root);
+  let maxRight = 0, maxBottom = 0;
+  for (const n of nodes) {
+    const p = pos[n.id];
+    p.x += offsetX;
+    maxRight  = Math.max(maxRight,  p.x + nodeW(n));
+    maxBottom = Math.max(maxBottom, p.y + CONFIG.NODE_H);
+  }
+
+  const totalW = maxRight  + CONFIG.PADDING;
+  const totalH = maxBottom + CONFIG.PADDING;
+  return { positions: pos, totalW, totalH };
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// SVG 렌더링
+// ─────────────────────────────────────────────────────────────────────
+
+const SVG_NS = 'http://www.w3.org/2000/svg';
+
+function el(tag, attrs = {}) {
+  const e = document.createElementNS(SVG_NS, tag);
+  for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
+  return e;
+}
+
+function renderTree(step) {
+  const svg       = document.getElementById('tree-svg');
+  const emptyDiv  = document.getElementById('empty-state');
+  const vizPanel  = document.getElementById('viz-panel');
+
+  // SVG 초기화
+  while (svg.firstChild) svg.removeChild(svg.firstChild);
+
+  if (!step || !step.tree) {
+    emptyDiv.style.display = 'flex';
+    svg.setAttribute('viewBox', '0 0 920 340');
+    svg.style.height = '340px';
+    return;
+  }
+  emptyDiv.style.display = 'none';
+
+  const { positions, totalW, totalH } = computeLayout(step.tree);
+  const changedSet = new Set(step.changedIds || []);
+
+  // SVG viewBox 조정
+  const vw = Math.max(totalW, 480);
+  const vh = Math.max(totalH, 200);
+  svg.setAttribute('viewBox', `0 0 ${vw} ${vh}`);
+  svg.style.height = `${Math.max(vh, 220)}px`;
+
+  // 엣지 레이어
+  const edgeGroup = el('g', { class: 'edges' });
+  drawAllEdges(edgeGroup, step.tree, positions);
+  svg.appendChild(edgeGroup);
+
+  // 노드 레이어
+  const nodeGroup = el('g', { class: 'nodes' });
+  drawAllNodes(nodeGroup, step.tree, positions, changedSet, step);
+  svg.appendChild(nodeGroup);
+}
+
+function drawAllEdges(g, node, positions) {
+  if (!node || node.isLeaf || node.children.length === 0) return;
+
+  const pp = positions[node.id];
+  const pw = nodeW(node);
+  const parentCX = pp.x + pw / 2;
+  const parentBY = pp.y + CONFIG.NODE_H;
+
+  for (let i = 0; i < node.children.length; i++) {
+    const child = node.children[i];
+    const cp    = positions[child.id];
+    if (!cp) continue;
+    const childCX  = cp.x + nodeW(child) / 2;
+    const childTY  = cp.y;
+    const midY     = (parentBY + childTY) / 2;
+
+    // 3차 베지어 곡선
+    const d = `M ${parentCX} ${parentBY} C ${parentCX} ${midY}, ${childCX} ${midY}, ${childCX} ${childTY}`;
+    g.appendChild(el('path', {
+      d,
+      stroke: CONFIG.COLORS.edge,
+      'stroke-width': '1.5',
+      fill: 'none',
+      opacity: '0.65',
+    }));
+
+    drawAllEdges(g, child, positions);
+  }
+}
+
+function nodeColor(nodeId, step, changedSet) {
+  if (!changedSet.has(nodeId)) return CONFIG.COLORS.normal;
+  if (step.type === 'split') return CONFIG.COLORS.split;
+  return CONFIG.COLORS.active;
+}
+
+function drawAllNodes(g, node, positions, changedSet, step) {
+  if (!node) return;
+
+  const p    = positions[node.id];
+  if (!p) return;
+
+  const x    = p.x;
+  const y    = p.y;
+  const w    = nodeW(node);
+  const h    = CONFIG.NODE_H;
+  const r    = CONFIG.NODE_R;
+  const c    = nodeColor(node.id, step, changedSet);
+
+  // 외곽 rect
+  g.appendChild(el('rect', {
+    x, y, width: w, height: h, rx: r, ry: r,
+    fill: c.fill, stroke: c.stroke, 'stroke-width': '1.5',
+  }));
+
+  // 키 셀들
+  for (let i = 0; i < node.keys.length; i++) {
+    const kx = x + i * CONFIG.NODE_CELL_W;
+
+    // 구분선 (두 번째 키부터)
+    if (i > 0) {
+      g.appendChild(el('line', {
+        x1: kx, y1: y + 7, x2: kx, y2: y + h - 7,
+        stroke: c.sep, 'stroke-width': '0.5', opacity: '0.55',
+      }));
+    }
+
+    // 삽입된 키 강조 배경
+    const isInsertedKey = (step.insertedValue === node.keys[i]) && changedSet.has(node.id);
+    if (isInsertedKey) {
+      g.appendChild(el('rect', {
+        x: kx + 6, y: y + 5,
+        width: CONFIG.NODE_CELL_W - 12, height: h - 10,
+        rx: 3, ry: 3,
+        fill: c.stroke, opacity: '0.22',
+      }));
+    }
+
+    // 키 텍스트
+    const t = el('text', {
+      x: kx + CONFIG.NODE_CELL_W / 2,
+      y: y + h / 2 + 5,
+      'text-anchor': 'middle',
+      fill: isInsertedKey ? '#ffffff' : c.text,
+      'font-size': '14',
+      'font-family': 'ui-monospace, "Cascadia Code", monospace',
+      'font-weight': '700',
+    });
+    t.textContent = node.keys[i];
+    g.appendChild(t);
+  }
+
+  // 자식 재귀
+  for (const child of node.children) {
+    drawAllNodes(g, child, positions, changedSet, step);
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// UI 업데이트
+// ─────────────────────────────────────────────────────────────────────
+
+const BADGE_MAP = {
+  init:    { label: '초기화', cls: 'badge-init'    },
+  insert:  { label: '삽입',   cls: 'badge-insert'  },
+  split:   { label: '분열',   cls: 'badge-split'   },
+  promote: { label: '승격',   cls: 'badge-promote' },
+  grow:    { label: '성장',   cls: 'badge-grow'    },
+};
+
+function updateStepPanel(step, idx, total) {
+  document.getElementById('step-title').textContent = step.title;
+  document.getElementById('step-desc').textContent  = step.desc;
+  document.getElementById('step-counter').textContent = `${idx + 1} / ${total}`;
+  document.getElementById('progress-fill').style.width = `${((idx + 1) / total) * 100}%`;
+
+  const badgeRow = document.getElementById('step-badge-row');
+  badgeRow.innerHTML = '';
+
+  const info = BADGE_MAP[step.type] || BADGE_MAP.init;
+  const b1 = document.createElement('span');
+  b1.className = `step-badge ${info.cls}`;
+  b1.textContent = info.label;
+  badgeRow.appendChild(b1);
+
+  if (step.insertedValue !== null && step.insertedValue !== undefined) {
+    const b2 = document.createElement('span');
+    b2.className = 'step-badge badge-value';
+    b2.textContent = `값: ${step.insertedValue}`;
+    badgeRow.appendChild(b2);
+  }
+
+  // 트리 깊이 배지
+  if (step.tree) {
+    const depth = treeDepth(step.tree);
+    const b3 = document.createElement('span');
+    b3.className = 'step-badge badge-init';
+    b3.textContent = `높이: ${depth}`;
+    badgeRow.appendChild(b3);
+
+    const nodeCount = countNodes(step.tree);
+    const b4 = document.createElement('span');
+    b4.className = 'step-badge badge-init';
+    b4.textContent = `노드 수: ${nodeCount}`;
+    badgeRow.appendChild(b4);
+  }
+}
+
+function updateButtons() {
+  const { currentIdx, steps, isPlaying } = APP;
+  const btnPrev  = document.getElementById('btn-prev');
+  const btnNext  = document.getElementById('btn-next');
+  const btnAuto  = document.getElementById('btn-autoplay');
+
+  btnPrev.disabled = currentIdx === 0;
+  btnNext.disabled = currentIdx >= steps.length - 1;
+
+  if (isPlaying) {
+    btnAuto.textContent = '⏸ 일시정지';
+    btnAuto.classList.add('btn-active');
+  } else {
+    btnAuto.textContent = '▶ 자동 재생';
+    btnAuto.classList.remove('btn-active');
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// 앱 상태 & 컨트롤러
+// ─────────────────────────────────────────────────────────────────────
+
+const APP = {
+  steps:      [],
+  currentIdx: 0,
+  timer:      null,
+  isPlaying:  false,
+};
+
+function initApp(values) {
+  _nodeIdSeq = 0;
+  APP.steps      = buildSteps(values);
+  APP.currentIdx = 0;
+  APP.isPlaying  = false;
+  clearInterval(APP.timer);
+  APP.timer = null;
+  render();
+}
+
+function render() {
+  const step = APP.steps[APP.currentIdx];
+  if (!step) return;
+  renderTree(step);
+  updateStepPanel(step, APP.currentIdx, APP.steps.length);
+  updateButtons();
+}
+
+function goNext() {
+  if (APP.currentIdx < APP.steps.length - 1) {
+    APP.currentIdx++;
+    render();
+  } else {
+    stopAutoPlay();
+  }
+}
+
+function goPrev() {
+  if (APP.currentIdx > 0) {
+    APP.currentIdx--;
+    render();
+  }
+}
+
+function startAutoPlay() {
+  if (APP.currentIdx >= APP.steps.length - 1) APP.currentIdx = 0;
+  APP.isPlaying = true;
+  updateButtons();
+  APP.timer = setInterval(() => {
+    if (APP.currentIdx >= APP.steps.length - 1) {
+      stopAutoPlay();
+    } else {
+      goNext();
+    }
+  }, CONFIG.AUTO_PLAY_INTERVAL);
+}
+
+function stopAutoPlay() {
+  APP.isPlaying = false;
+  clearInterval(APP.timer);
+  APP.timer = null;
+  updateButtons();
+}
+
+function toggleAutoPlay() {
+  APP.isPlaying ? stopAutoPlay() : startAutoPlay();
+}
+
+function resetApp() {
+  stopAutoPlay();
+  initApp(CONFIG.DEFAULT_VALUES);
+}
+
+/**
+ * 현재 트리 상태를 기준으로 커스텀 값을 삽입하고
+ * 새 단계를 현재 위치 뒤에 추가한다.
+ */
+function insertCustomValue(val) {
+  stopAutoPlay();
+
+  const currentStep = APP.steps[APP.currentIdx];
+  const baseTree    = cloneNode(currentStep ? currentStep.tree : null);
+
+  // _nodeIdSeq를 현재 트리의 최대 ID 이후로 설정
+  const existingNodes = allNodes(baseTree);
+  _nodeIdSeq = existingNodes.length > 0
+    ? Math.max(...existingNodes.map(n => n.id))
+    : _nodeIdSeq;
+
+  const changedIds = [];
+  const newRoot    = btreeInsert(cloneNode(baseTree), val, changedIds);
+  const didSplit   = countNodes(newRoot) > countNodes(baseTree) + 1;
+
+  const newSteps = [
+    {
+      tree: cloneNode(baseTree),
+      title: `${val} 삽입 시작`,
+      desc: `사용자 입력: 값 ${val}을(를) 현재 트리에 삽입합니다.`,
+      type: 'insert',
+      changedIds: [],
+      insertedValue: val,
+    },
+    {
+      tree: cloneNode(newRoot),
+      title: didSplit ? `${val} 삽입 — 노드 분열 발생` : `${val} 삽입 완료`,
+      desc:  didSplit ? buildSplitDesc(val, newRoot) : `값 ${val}이(가) 리프 노드에 삽입되었습니다.`,
+      type:  didSplit ? 'split' : 'insert',
+      changedIds: [...changedIds],
+      insertedValue: val,
+    },
+  ];
+
+  // 현재 인덱스 바로 뒤에 삽입
+  APP.steps.splice(APP.currentIdx + 1, 0, ...newSteps);
+  APP.currentIdx++;
+  render();
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// 이벤트 바인딩
+// ─────────────────────────────────────────────────────────────────────
+
+document.getElementById('btn-prev').addEventListener('click', () => { stopAutoPlay(); goPrev(); });
+document.getElementById('btn-next').addEventListener('click', () => { stopAutoPlay(); goNext(); });
+document.getElementById('btn-reset').addEventListener('click', resetApp);
+document.getElementById('btn-autoplay').addEventListener('click', toggleAutoPlay);
+
+document.getElementById('btn-insert-custom').addEventListener('click', () => {
+  const inp = document.getElementById('custom-input');
+  const val = parseInt(inp.value, 10);
+  if (!inp.value.trim() || isNaN(val) || val < 1 || val > 999) {
+    inp.style.borderColor = '#F09595';
+    inp.style.boxShadow   = '0 0 0 2px rgba(240,149,149,0.25)';
+    setTimeout(() => { inp.style.borderColor = ''; inp.style.boxShadow = ''; }, 1400);
+    inp.focus();
+    return;
+  }
+  inp.value = '';
+  insertCustomValue(val);
+});
+
+document.getElementById('custom-input').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') document.getElementById('btn-insert-custom').click();
+});
+
+// 키보드 단축키 (입력 필드 포커스 시 비활성)
+document.addEventListener('keydown', (e) => {
+  if (['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) return;
+  if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); stopAutoPlay(); goNext(); }
+  else if (e.key === 'ArrowLeft')               { e.preventDefault(); stopAutoPlay(); goPrev(); }
+  else if (e.key === 'p' || e.key === 'P')      { toggleAutoPlay(); }
+  else if (e.key === 'r' || e.key === 'R')      { resetApp(); }
+});
+
+// ─────────────────────────────────────────────────────────────────────
+// 초기 실행
+// ─────────────────────────────────────────────────────────────────────
+initApp(CONFIG.DEFAULT_VALUES);
+</script>
+</body>
+</html>
