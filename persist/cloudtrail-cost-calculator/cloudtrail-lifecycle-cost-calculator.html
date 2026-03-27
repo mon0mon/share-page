@@ -1,0 +1,1934 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CloudTrail 로그 비용 계산기</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    /* ── CSS 변수 및 리셋 ── */
+    :root {
+      --p: #e0e0e0;
+      --s: #a0a0a0;
+      --t: #707070;
+      --bg2: #2a2a2a;
+      --b: #404040;
+      --color-text-primary: #e0e0e0;
+      --color-text-secondary: #a0a0a0;
+      --color-text-tertiary: #707070;
+      --color-text-info: #85B7EB;
+      --color-text-danger: #F09595;
+      --color-text-success: #97C459;
+      --color-text-warning: #EF9F27;
+      --color-background-primary: #1a1a1a;
+      --color-background-secondary: #2a2a2a;
+      --color-background-tertiary: #111111;
+      --color-background-info: #0C447C;
+      --color-background-danger: #791F1F;
+      --color-background-success: #27500A;
+      --color-background-warning: #633806;
+      --color-border-primary: rgba(255,255,255,0.4);
+      --color-border-secondary: rgba(255,255,255,0.3);
+      --color-border-tertiary: rgba(255,255,255,0.15);
+      --font-sans: system-ui, -apple-system, sans-serif;
+      --font-serif: Georgia, serif;
+      --font-mono: ui-monospace, monospace;
+      --border-radius-md: 8px;
+      --border-radius-lg: 12px;
+      --border-radius-xl: 16px;
+    }
+
+    *, *::before, *::after { box-sizing: inherit; }
+
+    body {
+      margin: 0;
+      padding: 1rem;
+      font-family: var(--font-sans);
+      background: var(--color-background-primary);
+      color: var(--color-text-primary);
+      box-sizing: border-box;
+    }
+
+    button {
+      background: transparent;
+      border: 0.5px solid var(--color-border-secondary);
+      border-radius: var(--border-radius-md);
+      color: var(--color-text-primary);
+      padding: 6px 14px;
+      font-size: 14px;
+      cursor: pointer;
+      font-family: var(--font-sans);
+    }
+    button:hover { background: var(--color-background-secondary); }
+    button:active { transform: scale(0.98); }
+
+    input[type="range"] {
+      -webkit-appearance: none;
+      height: 4px;
+      background: var(--color-border-secondary);
+      border-radius: 2px;
+      outline: none;
+      width: 100%;
+      cursor: pointer;
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: var(--color-text-primary);
+      cursor: pointer;
+    }
+    input[type="range"]::-moz-range-thumb {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: var(--color-text-primary);
+      cursor: pointer;
+      border: none;
+    }
+
+    input[type="text"],
+    input[type="number"],
+    textarea,
+    select {
+      height: 36px;
+      background: var(--color-background-primary);
+      border: 0.5px solid var(--color-border-tertiary);
+      border-radius: var(--border-radius-md);
+      color: var(--color-text-primary);
+      padding: 0 10px;
+      font-size: 14px;
+      font-family: var(--font-sans);
+      outline: none;
+    }
+    input[type="text"]:hover,
+    input[type="number"]:hover,
+    textarea:hover,
+    select:hover {
+      border-color: var(--color-border-secondary);
+    }
+    input[type="text"]:focus,
+    input[type="number"]:focus,
+    textarea:focus,
+    select:focus {
+      border-color: var(--color-border-primary);
+      box-shadow: 0 0 0 2px rgba(255,255,255,0.1);
+    }
+
+    /* ── 레이아웃 ── */
+    .container {
+      max-width: 960px;
+      margin: 0 auto;
+    }
+
+    /* ── 헤더 ── */
+    .header {
+      margin-bottom: 1.25rem;
+    }
+    .header h1 {
+      font-size: 20px;
+      font-weight: 600;
+      margin: 0 0 4px;
+      color: var(--color-text-primary);
+    }
+    .header p {
+      font-size: 13px;
+      color: var(--color-text-secondary);
+      margin: 0;
+    }
+
+    /* ── 탭 네비게이션 ── */
+    .tab-nav {
+      display: flex;
+      gap: 0;
+      border-bottom: 1px solid var(--color-border-tertiary);
+      margin-bottom: 1.25rem;
+    }
+    .tab-btn {
+      background: transparent;
+      border: none;
+      border-bottom: 2px solid transparent;
+      border-radius: 0;
+      color: var(--color-text-tertiary);
+      padding: 10px 20px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: color 0.15s, border-color 0.15s;
+      margin-bottom: -1px;
+    }
+    .tab-btn:hover {
+      background: transparent;
+      color: var(--color-text-secondary);
+    }
+    .tab-btn.active {
+      color: var(--color-text-primary);
+      border-bottom-color: var(--color-text-info);
+    }
+
+    /* ── 탭 콘텐츠 ── */
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
+    /* ── 컨트롤 패널 ── */
+    .controls-panel {
+      background: var(--color-background-secondary);
+      border: 0.5px solid var(--color-border-tertiary);
+      border-radius: var(--border-radius-xl);
+      padding: 1.25rem 1.5rem;
+      margin-bottom: 1.25rem;
+    }
+
+    .controls-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 1rem;
+    }
+    .controls-header h2 {
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--color-text-secondary);
+      margin: 0;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .controls-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.25rem;
+    }
+    @media (max-width: 600px) {
+      .controls-grid { grid-template-columns: 1fr; }
+    }
+
+    .controls-grid-3 {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 1.25rem;
+    }
+    @media (max-width: 700px) {
+      .controls-grid-3 { grid-template-columns: 1fr 1fr; }
+    }
+    @media (max-width: 480px) {
+      .controls-grid-3 { grid-template-columns: 1fr; }
+    }
+
+    .control-item label {
+      display: block;
+      font-size: 13px;
+      color: var(--color-text-secondary);
+      margin-bottom: 6px;
+    }
+    .control-item .control-label-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 6px;
+    }
+    .control-item .control-label-row label {
+      margin-bottom: 0;
+    }
+    .control-item input[type="number"] {
+      width: 90px;
+      height: 30px;
+      font-size: 13px;
+    }
+    .control-item .unit-label {
+      font-size: 12px;
+      color: var(--color-text-tertiary);
+      margin-left: 4px;
+    }
+    .control-item .range-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .control-item .range-bounds {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      color: var(--color-text-tertiary);
+      margin-top: 3px;
+    }
+
+    /* ── Glacier 티어 선택 ── */
+    .glacier-tier-select {
+      width: 100%;
+      height: 36px;
+    }
+    .glacier-tier-info {
+      margin-top: 8px;
+      padding: 8px 12px;
+      background: var(--color-background-tertiary);
+      border: 0.5px solid var(--color-border-tertiary);
+      border-radius: var(--border-radius-md);
+      font-size: 12px;
+      color: var(--color-text-secondary);
+      line-height: 1.5;
+    }
+    .glacier-tier-info .tier-retrieval {
+      color: var(--color-text-info);
+    }
+    .glacier-tier-info .tier-min-storage {
+      color: var(--color-text-tertiary);
+    }
+    .glacier-warning {
+      margin-top: 6px;
+      padding: 6px 10px;
+      background: var(--color-background-warning);
+      border: 0.5px solid rgba(239,159,39,0.3);
+      border-radius: var(--border-radius-md);
+      font-size: 12px;
+      color: var(--color-text-warning);
+      display: none;
+    }
+
+    /* ── 차트 섹션 ── */
+    .chart-section {
+      background: var(--color-background-secondary);
+      border: 0.5px solid var(--color-border-tertiary);
+      border-radius: var(--border-radius-xl);
+      padding: 1.25rem 1.5rem;
+      margin-bottom: 1.25rem;
+    }
+    .section-title {
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--color-text-secondary);
+      margin: 0 0 1rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .chart-container {
+      position: relative;
+      height: 280px;
+    }
+
+    /* ── 레전드 ── */
+    .legend {
+      display: flex;
+      gap: 1.25rem;
+      margin-top: 0.75rem;
+      flex-wrap: wrap;
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: var(--color-text-secondary);
+    }
+    .legend-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 2px;
+      flex-shrink: 0;
+    }
+    .legend-line {
+      width: 20px;
+      height: 3px;
+      border-radius: 2px;
+      flex-shrink: 0;
+    }
+
+    /* ── 요약 카드 ── */
+    .summary-section {
+      margin-bottom: 1.25rem;
+    }
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0.75rem;
+    }
+    .summary-grid-4 {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 0.75rem;
+    }
+    @media (max-width: 700px) {
+      .summary-grid, .summary-grid-4 { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 400px) {
+      .summary-grid, .summary-grid-4 { grid-template-columns: 1fr 1fr; }
+    }
+
+    .summary-card {
+      background: var(--color-background-secondary);
+      border: 0.5px solid var(--color-border-tertiary);
+      border-radius: var(--border-radius-lg);
+      padding: 1rem 1.25rem;
+    }
+    .summary-card .card-label {
+      font-size: 12px;
+      color: var(--color-text-tertiary);
+      margin-bottom: 4px;
+    }
+    .summary-card .card-value {
+      font-size: 22px;
+      font-weight: 600;
+      font-family: var(--font-mono);
+      line-height: 1.2;
+    }
+    .summary-card .card-sub {
+      font-size: 11px;
+      color: var(--color-text-tertiary);
+      margin-top: 2px;
+    }
+    .summary-card.info .card-value { color: var(--color-text-info); }
+    .summary-card.success .card-value { color: var(--color-text-success); }
+    .summary-card.warning .card-value { color: var(--color-text-warning); }
+    .summary-card.teal .card-value { color: #5DCAA5; }
+    .summary-card.coral .card-value { color: #F0997B; }
+    .summary-card.purple .card-value { color: #AFA9EC; }
+    .summary-card.default .card-value { color: var(--color-text-primary); }
+
+    /* ── 생명주기 타임라인 ── */
+    .timeline-section {
+      background: var(--color-background-secondary);
+      border: 0.5px solid var(--color-border-tertiary);
+      border-radius: var(--border-radius-xl);
+      padding: 1.25rem 1.5rem;
+      margin-bottom: 1.25rem;
+    }
+
+    .timeline-bar-wrapper {
+      margin-top: 0.75rem;
+      overflow: hidden;
+    }
+
+    .timeline-track {
+      display: flex;
+      height: 44px;
+      border-radius: var(--border-radius-md);
+      overflow: hidden;
+      font-size: 13px;
+      font-weight: 500;
+    }
+
+    .timeline-segment {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0 10px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      transition: flex 0.3s ease;
+      min-width: 0;
+    }
+    .timeline-segment.s3 {
+      background: var(--color-background-info);
+      color: var(--color-text-info);
+      border-right: 1px solid rgba(133,183,235,0.2);
+    }
+    .timeline-segment.glacier {
+      background: #085041;
+      color: #5DCAA5;
+      border-right: 1px solid rgba(93,202,165,0.2);
+    }
+    .timeline-segment.deleted {
+      background: #2a1f1f;
+      color: var(--color-text-tertiary);
+      min-width: 60px;
+      flex: 0 0 60px;
+    }
+
+    .timeline-labels {
+      display: flex;
+      margin-top: 6px;
+      font-size: 11px;
+      color: var(--color-text-tertiary);
+      position: relative;
+    }
+    .timeline-label {
+      position: relative;
+      text-align: center;
+      transition: flex 0.3s ease;
+    }
+    .timeline-label.s3-label { color: var(--color-text-info); }
+    .timeline-label.glacier-label { color: #5DCAA5; }
+
+    /* ── 가격 참조 ── */
+    .pricing-ref {
+      margin-top: 1.25rem;
+      padding: 0.875rem 1.25rem;
+      background: var(--color-background-tertiary);
+      border: 0.5px solid var(--color-border-tertiary);
+      border-radius: var(--border-radius-lg);
+      font-size: 12px;
+      color: var(--color-text-tertiary);
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem 1.5rem;
+    }
+    .pricing-ref span { white-space: nowrap; }
+    .pricing-ref strong { color: var(--color-text-secondary); }
+
+    /* ── 토글 스위치 ── */
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .toggle-label {
+      font-size: 13px;
+      color: var(--color-text-secondary);
+      flex: 1;
+    }
+    .toggle-label .toggle-sub {
+      font-size: 11px;
+      color: var(--color-text-tertiary);
+      display: block;
+      margin-top: 2px;
+    }
+    .toggle-switch {
+      position: relative;
+      width: 40px;
+      height: 22px;
+      flex-shrink: 0;
+    }
+    .toggle-switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+      position: absolute;
+    }
+    .toggle-track {
+      position: absolute;
+      inset: 0;
+      background: var(--color-border-tertiary);
+      border-radius: 11px;
+      cursor: pointer;
+      transition: background 0.2s;
+      border: 0.5px solid var(--color-border-tertiary);
+    }
+    .toggle-track::before {
+      content: '';
+      position: absolute;
+      width: 16px;
+      height: 16px;
+      background: var(--color-text-tertiary);
+      border-radius: 50%;
+      top: 2px;
+      left: 2px;
+      transition: transform 0.2s, background 0.2s;
+    }
+    .toggle-switch input:checked + .toggle-track {
+      background: rgba(133,183,235,0.25);
+      border-color: rgba(133,183,235,0.4);
+    }
+    .toggle-switch input:checked + .toggle-track::before {
+      transform: translateX(18px);
+      background: var(--color-text-info);
+    }
+
+    /* ── 비교 테이블 ── */
+    .comparison-table-wrapper {
+      overflow-x: auto;
+      margin-top: 0.5rem;
+    }
+    .comparison-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    .comparison-table th {
+      text-align: left;
+      padding: 8px 12px;
+      color: var(--color-text-tertiary);
+      font-weight: 500;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      border-bottom: 1px solid var(--color-border-tertiary);
+      white-space: nowrap;
+    }
+    .comparison-table td {
+      padding: 9px 12px;
+      border-bottom: 0.5px solid var(--color-border-tertiary);
+      color: var(--color-text-secondary);
+      vertical-align: middle;
+      white-space: nowrap;
+    }
+    .comparison-table tr:last-child td { border-bottom: none; }
+    .comparison-table tr:hover td { background: rgba(255,255,255,0.03); }
+    .badge-ok {
+      color: var(--color-text-success);
+      font-size: 14px;
+    }
+    .badge-no {
+      color: var(--color-text-danger);
+      font-size: 14px;
+    }
+    .badge-warn {
+      color: var(--color-text-warning);
+      font-size: 12px;
+    }
+    .restore-note {
+      display: inline-block;
+      margin-left: 4px;
+      padding: 1px 6px;
+      background: var(--color-background-warning);
+      border-radius: 4px;
+      font-size: 11px;
+      color: var(--color-text-warning);
+    }
+
+    /* ── 툴팁 ── */
+    .tooltip-wrap {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+    }
+    .tooltip-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 15px;
+      height: 15px;
+      border-radius: 50%;
+      background: var(--color-border-tertiary);
+      color: var(--color-text-tertiary);
+      font-size: 10px;
+      cursor: help;
+      margin-left: 5px;
+      flex-shrink: 0;
+    }
+    .tooltip-bubble {
+      position: absolute;
+      bottom: calc(100% + 6px);
+      left: 50%;
+      transform: translateX(-50%);
+      background: #333;
+      border: 0.5px solid var(--color-border-secondary);
+      border-radius: var(--border-radius-md);
+      padding: 8px 10px;
+      font-size: 11px;
+      color: var(--color-text-secondary);
+      white-space: normal;
+      min-width: 180px;
+      max-width: 260px;
+      z-index: 100;
+      line-height: 1.5;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.15s;
+    }
+    .tooltip-wrap:hover .tooltip-bubble { opacity: 1; }
+
+    /* ── 커스텀 가격 ── */
+    details.custom-pricing {
+      margin-bottom: 1rem;
+      padding-bottom: 1rem;
+      border-bottom: 0.5px solid var(--color-border-tertiary);
+    }
+    details.custom-pricing summary {
+      font-size: 12px;
+      color: var(--color-text-tertiary);
+      cursor: pointer;
+      user-select: none;
+    }
+    details.custom-pricing summary:hover {
+      color: var(--color-text-secondary);
+    }
+    details.custom-pricing .custom-fields {
+      display: flex;
+      gap: 16px;
+      margin-top: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .custom-field-group {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      color: var(--color-text-secondary);
+    }
+    .custom-field-group input[type="number"] {
+      width: 120px;
+      height: 30px;
+      font-size: 13px;
+    }
+    .custom-field-group .unit-label {
+      font-size: 11px;
+      color: var(--color-text-tertiary);
+    }
+    .btn-restore-defaults {
+      font-size: 11px;
+      color: var(--color-text-tertiary);
+      background: none;
+      border: none;
+      padding: 0;
+      cursor: pointer;
+      text-decoration: underline;
+      border-radius: 0;
+    }
+    .btn-restore-defaults:hover {
+      color: var(--color-text-secondary);
+      background: none;
+    }
+    .custom-indicator {
+      font-size: 11px;
+      color: var(--color-text-warning);
+      margin-left: 6px;
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <!-- 헤더 -->
+  <div class="header">
+    <h1>AWS CloudTrail 로그 비용 계산기</h1>
+    <p id="header-subtitle">생명주기 스토리지 비용 및 Athena 쿼리 비용을 시뮬레이션합니다 (ap-northeast-2 기준)</p>
+  </div>
+
+  <!-- 탭 네비게이션 -->
+  <div class="tab-nav">
+    <button class="tab-btn active" data-tab="tab-lifecycle">생명주기 비용 계산기</button>
+    <button class="tab-btn" data-tab="tab-athena">Athena 쿼리 비용 분석</button>
+  </div>
+
+  <!-- ════════════════════════════════════════════════
+       탭 1: 생명주기 비용 계산기
+  ════════════════════════════════════════════════ -->
+  <div class="tab-content active" id="tab-lifecycle">
+
+    <!-- 컨트롤 패널 -->
+    <div class="controls-panel">
+      <div class="controls-header">
+        <h2>파라미터 설정</h2>
+        <button id="btn-reset-1">리셋</button>
+      </div>
+
+      <!-- 리전 선택 -->
+      <div style="display:flex; align-items:center; gap:12px; margin-bottom:1rem; padding-bottom:1rem; border-bottom:0.5px solid var(--color-border-tertiary);">
+        <label style="font-size:13px; color:var(--color-text-secondary); white-space:nowrap;">리전 선택</label>
+        <select id="select-region" style="flex:1; max-width:320px;">
+          <option value="ap-northeast-2" selected>ap-northeast-2 — Asia Pacific (Seoul)</option>
+          <option value="us-east-1">us-east-1 — US East (N. Virginia)</option>
+          <option value="us-west-2">us-west-2 — US West (Oregon)</option>
+          <option value="eu-west-1">eu-west-1 — Europe (Ireland)</option>
+          <option value="ap-northeast-1">ap-northeast-1 — Asia Pacific (Tokyo)</option>
+          <option value="ap-southeast-1">ap-southeast-1 — Asia Pacific (Singapore)</option>
+        </select>
+        <span class="custom-indicator" id="custom-pricing-indicator" style="display:none;">(커스텀)</span>
+      </div>
+
+      <!-- 커스텀 가격 -->
+      <details class="custom-pricing" id="details-custom-pricing">
+        <summary>가격 커스텀</summary>
+        <div class="custom-fields">
+          <div class="custom-field-group">
+            <label style="white-space:nowrap;">S3 Standard 가격:</label>
+            <input type="number" id="input-custom-s3" step="0.001" min="0.001" placeholder="0.025" style="width:120px;" />
+            <span class="unit-label">$/GB/월</span>
+          </div>
+          <div class="custom-field-group">
+            <label style="white-space:nowrap;">Glacier 가격:</label>
+            <input type="number" id="input-custom-glacier" step="0.0001" min="0.0001" placeholder="0.005" style="width:120px;" />
+            <span class="unit-label">$/GB/월</span>
+          </div>
+          <button class="btn-restore-defaults" id="btn-restore-custom">기본값 복원</button>
+        </div>
+      </details>
+
+      <div class="controls-grid">
+
+        <!-- 월 생성 로그 -->
+        <div class="control-item">
+          <div class="control-label-row">
+            <label for="slider-log-size">월 생성 로그</label>
+            <div style="display:flex; align-items:center; gap:2px;">
+              <input type="number" id="num-log-size" value="1" min="0.1" max="100" step="0.1" style="width:80px;" />
+              <span class="unit-label">GB/월</span>
+            </div>
+          </div>
+          <input type="range" id="slider-log-size" min="0.1" max="100" step="0.1" value="1" />
+          <div class="range-bounds"><span>0.1 GB</span><span>100 GB</span></div>
+        </div>
+
+        <!-- S3 Standard 보관 기간 -->
+        <div class="control-item">
+          <div class="control-label-row">
+            <label for="slider-s3-days">S3 Standard 보관 기간</label>
+            <div style="display:flex; align-items:center; gap:2px;">
+              <input type="number" id="num-s3-days" value="90" min="30" max="365" step="1" style="width:80px;" />
+              <span class="unit-label">일</span>
+            </div>
+          </div>
+          <input type="range" id="slider-s3-days" min="30" max="365" step="1" value="90" />
+          <div class="range-bounds"><span>30일</span><span>365일</span></div>
+        </div>
+
+        <!-- S3 Glacier 보관 기간 -->
+        <div class="control-item">
+          <div class="control-label-row">
+            <label for="slider-glacier-days">S3 Glacier 보관 기간</label>
+            <div style="display:flex; align-items:center; gap:2px;">
+              <input type="number" id="num-glacier-days" value="365" min="0" max="730" step="1" style="width:80px;" />
+              <span class="unit-label">일</span>
+            </div>
+          </div>
+          <input type="range" id="slider-glacier-days" min="0" max="730" step="1" value="365" />
+          <div class="range-bounds"><span>0일</span><span>730일</span></div>
+          <div class="glacier-warning" id="glacier-min-warning">
+            ⚠ 선택한 티어의 최소 보관 기간보다 짧습니다. 자동으로 조정되었습니다.
+          </div>
+        </div>
+
+        <!-- Glacier 티어 선택 -->
+        <div class="control-item">
+          <label for="select-glacier-tier">Glacier 티어 선택</label>
+          <select id="select-glacier-tier" class="glacier-tier-select">
+            <option value="instant" selected>Glacier Instant Retrieval — $0.005/GB/월</option>
+            <option value="flexible">Glacier Flexible Retrieval — $0.0045/GB/월</option>
+            <option value="deep">Glacier Deep Archive — $0.002/GB/월</option>
+          </select>
+          <div class="glacier-tier-info" id="glacier-tier-info">
+            <span class="tier-retrieval">검색 시간: 밀리초</span><br>
+            <span class="tier-min-storage">최소 보관: 90일</span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- 차트 섹션 -->
+    <div class="chart-section">
+      <div class="section-title">월별 스토리지 비용 (12개월)</div>
+      <div class="chart-container">
+        <canvas id="cost-chart"></canvas>
+      </div>
+      <div class="legend">
+        <div class="legend-item">
+          <div class="legend-dot" style="background:#0C447C; border: 1px solid #85B7EB;"></div>
+          <span>S3 Standard</span>
+        </div>
+        <div class="legend-item">
+          <div class="legend-dot" id="legend-glacier-dot" style="background:#085041; border: 1px solid #5DCAA5;"></div>
+          <span id="legend-glacier-label">S3 Glacier</span>
+        </div>
+        <div class="legend-item">
+          <div class="legend-line" style="background:#F0997B;"></div>
+          <span>누적 총 비용</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 요약 카드 -->
+    <div class="summary-section">
+      <div class="summary-grid">
+        <div class="summary-card coral">
+          <div class="card-label">월 평균 비용 (정상 상태)</div>
+          <div class="card-value" id="card-avg-monthly">—</div>
+          <div class="card-sub">steady-state 기준</div>
+        </div>
+        <div class="summary-card warning">
+          <div class="card-label">연간 총 비용 (12개월)</div>
+          <div class="card-value" id="card-annual-total">—</div>
+          <div class="card-sub">12개월 누적 합계</div>
+        </div>
+        <div class="summary-card info">
+          <div class="card-label">S3 Standard 총 비용</div>
+          <div class="card-value" id="card-s3-total">—</div>
+          <div class="card-sub">12개월 합계</div>
+        </div>
+        <div class="summary-card teal">
+          <div class="card-label">S3 Glacier 총 비용</div>
+          <div class="card-value" id="card-glacier-total">—</div>
+          <div class="card-sub">12개월 합계</div>
+        </div>
+        <div class="summary-card default">
+          <div class="card-label">정상 상태 저장량</div>
+          <div class="card-value" id="card-storage-size">—</div>
+          <div class="card-sub" id="card-storage-sub">S3 + Glacier</div>
+        </div>
+        <div class="summary-card success">
+          <div class="card-label">Glacier 전환 절감률</div>
+          <div class="card-value" id="card-savings-rate">—</div>
+          <div class="card-sub">S3만 사용 시 대비</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 생명주기 타임라인 -->
+    <div class="timeline-section">
+      <div class="section-title">로그 생명주기 타임라인</div>
+      <div class="timeline-bar-wrapper">
+        <div class="timeline-track" id="timeline-track">
+          <div class="timeline-segment s3" id="tl-s3">S3 Standard (90일)</div>
+          <div class="timeline-segment glacier" id="tl-glacier">S3 Glacier (365일)</div>
+          <div class="timeline-segment deleted" id="tl-deleted">삭제</div>
+        </div>
+        <div class="timeline-labels" id="timeline-labels">
+          <div class="timeline-label s3-label" id="tl-label-s3" style="flex:90;"></div>
+          <div class="timeline-label glacier-label" id="tl-label-glacier" style="flex:365;"></div>
+          <div class="timeline-label" id="tl-label-del" style="flex:60; min-width:60px;"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- AWS 가격 참조 -->
+    <div class="pricing-ref" id="pricing-ref-1">
+      <span id="pref-s3-price"><strong>S3 Standard:</strong> $0.025/GB/월</span>
+      <span id="pref-glacier-price"><strong>S3 Glacier Instant:</strong> $0.005/GB/월</span>
+      <span><strong>Lifecycle 전환 요청:</strong> $0.01/1,000건</span>
+      <span><strong>CloudTrail 관리 이벤트:</strong> 첫 번째 트레일 무료</span>
+      <span id="pref-region-note" style="color: var(--color-text-tertiary);">기준: ap-northeast-2 | 2024년 기준</span>
+    </div>
+
+  </div><!-- /tab-lifecycle -->
+
+  <!-- ════════════════════════════════════════════════
+       탭 2: Athena 쿼리 비용 분석
+  ════════════════════════════════════════════════ -->
+  <div class="tab-content" id="tab-athena">
+
+    <!-- 컨트롤 패널 -->
+    <div class="controls-panel">
+      <div class="controls-header">
+        <h2>Athena 파라미터 설정</h2>
+        <button id="btn-reset-2">리셋</button>
+      </div>
+      <div class="controls-grid-3">
+
+        <!-- 월 쿼리 횟수 -->
+        <div class="control-item">
+          <div class="control-label-row">
+            <label for="slider-query-count">월 쿼리 횟수</label>
+            <div style="display:flex; align-items:center; gap:2px;">
+              <input type="number" id="num-query-count" value="10" min="1" max="100" step="1" style="width:80px;" />
+              <span class="unit-label">회/월</span>
+            </div>
+          </div>
+          <input type="range" id="slider-query-count" min="1" max="100" step="1" value="10" />
+          <div class="range-bounds"><span>1회</span><span>100회</span></div>
+        </div>
+
+        <!-- 쿼리당 평균 스캔 데이터 -->
+        <div class="control-item">
+          <div class="control-label-row">
+            <label for="slider-scan-gb">쿼리당 스캔 데이터
+              <span class="tooltip-wrap">
+                <span class="tooltip-icon">?</span>
+                <span class="tooltip-bubble">파티셔닝/압축 미적용 기준 원본 스캔량입니다. 토글 적용 시 실제 스캔량이 감소합니다.</span>
+              </span>
+            </label>
+            <div style="display:flex; align-items:center; gap:2px;">
+              <input type="number" id="num-scan-gb" value="0.1" min="0.01" max="10" step="0.01" style="width:80px;" />
+              <span class="unit-label">GB</span>
+            </div>
+          </div>
+          <input type="range" id="slider-scan-gb" min="0.01" max="10" step="0.01" value="0.1" />
+          <div class="range-bounds"><span>0.01 GB</span><span>10 GB</span></div>
+        </div>
+
+        <!-- 스토리지 티어 -->
+        <div class="control-item">
+          <label for="select-athena-tier">스토리지 티어
+            <span class="tooltip-wrap">
+              <span class="tooltip-icon">?</span>
+              <span class="tooltip-bubble">Glacier Flexible / Deep Archive는 직접 쿼리 불가 — Athena 실행 전 복원이 필요합니다.</span>
+            </span>
+          </label>
+          <select id="select-athena-tier">
+            <option value="standard">S3 Standard</option>
+            <option value="standard-ia">S3 Standard-IA</option>
+            <option value="glacier-instant" selected>Glacier Instant Retrieval</option>
+            <option value="glacier-flexible">Glacier Flexible Retrieval ⚠ 복원 필요</option>
+            <option value="glacier-deep">Glacier Deep Archive ⚠ 복원 필요</option>
+          </select>
+          <div id="athena-tier-restore-note" style="display:none; margin-top:8px; padding:7px 10px; background:var(--color-background-warning); border:0.5px solid rgba(239,159,39,0.3); border-radius:var(--border-radius-md); font-size:12px; color:var(--color-text-warning);">
+            ⚠ 이 티어는 Athena에서 직접 쿼리할 수 없습니다. 먼저 복원(restore) 후 쿼리해야 합니다.
+          </div>
+        </div>
+
+        <!-- 파티셔닝 토글 -->
+        <div class="control-item">
+          <label>최적화 옵션</label>
+          <div style="display:flex; flex-direction:column; gap:10px; margin-top:4px;">
+            <div class="toggle-row">
+              <div class="toggle-label">
+                파티셔닝 적용
+                <span class="toggle-sub">스캔량 70% 감소</span>
+              </div>
+              <label class="toggle-switch">
+                <input type="checkbox" id="toggle-partition" checked />
+                <span class="toggle-track"></span>
+              </label>
+            </div>
+            <div class="toggle-row">
+              <div class="toggle-label">
+                압축 (Parquet/ORC)
+                <span class="toggle-sub">파티셔닝 후 추가 80% 감소</span>
+              </div>
+              <label class="toggle-switch">
+                <input type="checkbox" id="toggle-compress" />
+                <span class="toggle-track"></span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- 실제 스캔량 표시 -->
+        <div class="control-item" id="athena-effective-scan-card" style="background:var(--color-background-tertiary); border:0.5px solid var(--color-border-tertiary); border-radius:var(--border-radius-md); padding:12px;">
+          <div style="font-size:12px; color:var(--color-text-tertiary); margin-bottom:6px;">실제 쿼리당 스캔량 (최소 10MB)</div>
+          <div style="font-size:20px; font-weight:600; font-family:var(--font-mono); color:var(--color-text-info);" id="athena-effective-scan-value">—</div>
+          <div style="font-size:11px; color:var(--color-text-tertiary); margin-top:4px;" id="athena-scan-breakdown">—</div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Athena 요약 카드 -->
+    <div class="summary-section">
+      <div class="summary-grid-4">
+        <div class="summary-card purple">
+          <div class="card-label">월 평균 Athena 비용</div>
+          <div class="card-value" id="athena-card-monthly">—</div>
+          <div class="card-sub">스캔 + GET 요청</div>
+        </div>
+        <div class="summary-card warning">
+          <div class="card-label">연간 Athena 비용</div>
+          <div class="card-value" id="athena-card-annual">—</div>
+          <div class="card-sub">12개월 합계</div>
+        </div>
+        <div class="summary-card coral">
+          <div class="card-label">쿼리당 평균 비용</div>
+          <div class="card-value" id="athena-card-per-query">—</div>
+          <div class="card-sub">스캔 + GET</div>
+        </div>
+        <div class="summary-card success">
+          <div class="card-label">파티셔닝/압축 절감률</div>
+          <div class="card-value" id="athena-card-savings">—</div>
+          <div class="card-sub">미적용 대비</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Athena 차트 -->
+    <div class="chart-section">
+      <div class="section-title">월별 Athena 비용 (12개월)</div>
+      <div class="chart-container">
+        <canvas id="athena-chart"></canvas>
+      </div>
+      <div class="legend">
+        <div class="legend-item">
+          <div class="legend-dot" style="background:#3C3489; border: 1px solid #AFA9EC;"></div>
+          <span>Athena 스캔 비용</span>
+        </div>
+        <div class="legend-item">
+          <div class="legend-dot" style="background:#085041; border: 1px solid #5DCAA5;"></div>
+          <span>S3 GET 요청 비용</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 스토리지 티어 비교 테이블 -->
+    <div class="chart-section">
+      <div class="section-title">스토리지 티어별 Athena 접근 가능 여부</div>
+      <div class="comparison-table-wrapper">
+        <table class="comparison-table" id="athena-comparison-table">
+          <thead>
+            <tr>
+              <th>스토리지 클래스</th>
+              <th>직접 쿼리</th>
+              <th>복원 필요</th>
+              <th>월 쿼리 비용</th>
+              <th>복원 비용/GB</th>
+              <th>소요 시간</th>
+            </tr>
+          </thead>
+          <tbody id="athena-table-body">
+            <!-- JS로 채워짐 -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Athena 가격 참조 -->
+    <div class="pricing-ref" id="pricing-ref-2">
+      <span><strong>Athena 스캔:</strong> $5.00/TB (최소 10MB/쿼리)</span>
+      <span><strong>S3 GET 요청:</strong> ~$0.0004/쿼리</span>
+      <span id="pref-athena-flexible-restore"><strong>Glacier Flexible Expedited 복원:</strong> $0.03/GB</span>
+      <span id="pref-athena-deep-restore"><strong>Glacier Deep Archive Standard 복원:</strong> $0.02/GB</span>
+      <span id="pref-athena-region-note" style="color: var(--color-text-tertiary);">기준: ap-northeast-2 | 2024년 기준</span>
+    </div>
+
+  </div><!-- /tab-athena -->
+
+</div><!-- /container -->
+
+<script>
+/* ─────────────────────────────────────────────────
+   CONFIG: 기본값 및 AWS 요금 설정
+───────────────────────────────────────────────── */
+const CONFIG = {
+  defaults: {
+    /* 탭 1 */
+    logSizeGB: 1,
+    s3Days: 90,
+    glacierDays: 365,
+    glacierTier: 'instant',
+    /* 탭 2 */
+    queryCount: 10,
+    scanGB: 0.1,
+    partitionEnabled: true,
+    compressEnabled: false,
+    athenaTier: 'glacier-instant',
+    /* 리전 */
+    region: 'ap-northeast-2',
+  },
+  regions: {
+    'ap-northeast-2': {
+      label: 'Asia Pacific (Seoul)',
+      s3Standard: 0.025,
+      glacierTiers: {
+        instant:  { price: 0.005,   minDays: 90,  label: 'Glacier Instant Retrieval',  retrieval: '밀리초' },
+        flexible: { price: 0.0045,  minDays: 90,  label: 'Glacier Flexible Retrieval', retrieval: '1-5분 (Expedited) / 3-5시간 (Standard) / 5-12시간 (Bulk)' },
+        deep:     { price: 0.002,   minDays: 180, label: 'Glacier Deep Archive',       retrieval: '12시간 (Standard) / 48시간 (Bulk)' },
+      },
+      athena: 5.0,
+      restore: {
+        'glacier-flexible': { expedited: 0.03, standard: 0.01, bulk: 0.0025, timeNote: '1분~12시간' },
+        'glacier-deep':     { expedited: null, standard: 0.02, bulk: 0.0025, timeNote: '12~48시간' },
+      },
+    },
+    'us-east-1': {
+      label: 'US East (N. Virginia)',
+      s3Standard: 0.023,
+      glacierTiers: {
+        instant:  { price: 0.004,   minDays: 90,  label: 'Glacier Instant Retrieval',  retrieval: '밀리초' },
+        flexible: { price: 0.0036,  minDays: 90,  label: 'Glacier Flexible Retrieval', retrieval: '1-5분 (Expedited) / 3-5시간 (Standard) / 5-12시간 (Bulk)' },
+        deep:     { price: 0.00099, minDays: 180, label: 'Glacier Deep Archive',       retrieval: '12시간 (Standard) / 48시간 (Bulk)' },
+      },
+      athena: 5.0,
+      restore: {
+        'glacier-flexible': { expedited: 0.03, standard: 0.01, bulk: 0.0025, timeNote: '1분~12시간' },
+        'glacier-deep':     { expedited: null, standard: 0.02, bulk: 0.0025, timeNote: '12~48시간' },
+      },
+    },
+    'us-west-2': {
+      label: 'US West (Oregon)',
+      s3Standard: 0.023,
+      glacierTiers: {
+        instant:  { price: 0.004,   minDays: 90,  label: 'Glacier Instant Retrieval',  retrieval: '밀리초' },
+        flexible: { price: 0.0036,  minDays: 90,  label: 'Glacier Flexible Retrieval', retrieval: '1-5분 (Expedited) / 3-5시간 (Standard) / 5-12시간 (Bulk)' },
+        deep:     { price: 0.00099, minDays: 180, label: 'Glacier Deep Archive',       retrieval: '12시간 (Standard) / 48시간 (Bulk)' },
+      },
+      athena: 5.0,
+      restore: {
+        'glacier-flexible': { expedited: 0.03, standard: 0.01, bulk: 0.0025, timeNote: '1분~12시간' },
+        'glacier-deep':     { expedited: null, standard: 0.02, bulk: 0.0025, timeNote: '12~48시간' },
+      },
+    },
+    'eu-west-1': {
+      label: 'Europe (Ireland)',
+      s3Standard: 0.024,
+      glacierTiers: {
+        instant:  { price: 0.004,   minDays: 90,  label: 'Glacier Instant Retrieval',  retrieval: '밀리초' },
+        flexible: { price: 0.0036,  minDays: 90,  label: 'Glacier Flexible Retrieval', retrieval: '1-5분 (Expedited) / 3-5시간 (Standard) / 5-12시간 (Bulk)' },
+        deep:     { price: 0.001,   minDays: 180, label: 'Glacier Deep Archive',       retrieval: '12시간 (Standard) / 48시간 (Bulk)' },
+      },
+      athena: 5.0,
+      restore: {
+        'glacier-flexible': { expedited: 0.03, standard: 0.01, bulk: 0.0025, timeNote: '1분~12시간' },
+        'glacier-deep':     { expedited: null, standard: 0.02, bulk: 0.0025, timeNote: '12~48시간' },
+      },
+    },
+    'ap-northeast-1': {
+      label: 'Asia Pacific (Tokyo)',
+      s3Standard: 0.025,
+      glacierTiers: {
+        instant:  { price: 0.005,   minDays: 90,  label: 'Glacier Instant Retrieval',  retrieval: '밀리초' },
+        flexible: { price: 0.0045,  minDays: 90,  label: 'Glacier Flexible Retrieval', retrieval: '1-5분 (Expedited) / 3-5시간 (Standard) / 5-12시간 (Bulk)' },
+        deep:     { price: 0.002,   minDays: 180, label: 'Glacier Deep Archive',       retrieval: '12시간 (Standard) / 48시간 (Bulk)' },
+      },
+      athena: 5.0,
+      restore: {
+        'glacier-flexible': { expedited: 0.03, standard: 0.01, bulk: 0.0025, timeNote: '1분~12시간' },
+        'glacier-deep':     { expedited: null, standard: 0.02, bulk: 0.0025, timeNote: '12~48시간' },
+      },
+    },
+    'ap-southeast-1': {
+      label: 'Asia Pacific (Singapore)',
+      s3Standard: 0.025,
+      glacierTiers: {
+        instant:  { price: 0.005,   minDays: 90,  label: 'Glacier Instant Retrieval',  retrieval: '밀리초' },
+        flexible: { price: 0.005,   minDays: 90,  label: 'Glacier Flexible Retrieval', retrieval: '1-5분 (Expedited) / 3-5시간 (Standard) / 5-12시간 (Bulk)' },
+        deep:     { price: 0.002,   minDays: 180, label: 'Glacier Deep Archive',       retrieval: '12시간 (Standard) / 48시간 (Bulk)' },
+      },
+      athena: 5.0,
+      restore: {
+        'glacier-flexible': { expedited: 0.03, standard: 0.01, bulk: 0.0025, timeNote: '1분~12시간' },
+        'glacier-deep':     { expedited: null, standard: 0.02, bulk: 0.0025, timeNote: '12~48시간' },
+      },
+    },
+  },
+  defaultRegion: 'ap-northeast-2',
+  pricing: {
+    lifecycleReq: 0.00001,     // $/요청
+    athenaScanPerTB: 5.0,      // $/TB
+    athenaMinScanMB: 10,       // 최소 10MB
+    s3GetPerQuery: 0.0004,     // $/쿼리 (GET 요청 묶음)
+  },
+  months: 12,
+  colors: {
+    s3Fill: '#0C447C',
+    s3Border: '#85B7EB',
+    glacierFill: '#085041',
+    glacierBorder: '#5DCAA5',
+    cumulative: '#F0997B',
+    athenaScanFill: '#3C3489',
+    athenaScanBorder: '#AFA9EC',
+  },
+};
+
+/* ─────────────────────────────────────────────────
+   상태
+───────────────────────────────────────────────── */
+let state = {
+  ...CONFIG.defaults,
+  region: CONFIG.defaultRegion,
+  customS3Price: null,
+  customGlacierPrice: null,
+  customPricing: false,
+};
+
+/* ─────────────────────────────────────────────────
+   리전 가격 헬퍼
+───────────────────────────────────────────────── */
+function getRegionPricing() {
+  const regionData = CONFIG.regions[state.region];
+  const s3Standard = state.customS3Price !== null ? state.customS3Price : regionData.s3Standard;
+  const glacierTiers = { ...regionData.glacierTiers };
+  if (state.customGlacierPrice !== null) {
+    // 현재 선택된 glacier tier의 price만 override
+    glacierTiers[state.glacierTier] = {
+      ...glacierTiers[state.glacierTier],
+      price: state.customGlacierPrice,
+    };
+  }
+  return {
+    s3Standard,
+    glacierTiers,
+    restore: regionData.restore,
+    athena: regionData.athena,
+  };
+}
+
+/* ─────────────────────────────────────────────────
+   유틸
+───────────────────────────────────────────────── */
+function formatUSD(val) {
+  if (val === null || val === undefined || isNaN(val)) return '—';
+  if (val >= 100) return `$${val.toFixed(0)}`;
+  if (val >= 1)   return `$${val.toFixed(2)}`;
+  return `$${val.toFixed(4)}`;
+}
+
+function debounce(fn, delay) {
+  let timer;
+  return (...args) => {
+    clearTimeout(timer);
+    timer = setTimeout(() => fn(...args), delay);
+  };
+}
+
+/* ─────────────────────────────────────────────────
+   탭 전환
+───────────────────────────────────────────────── */
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById(btn.dataset.tab).classList.add('active');
+    // 활성 탭의 차트 업데이트 (차트 크기 조정)
+    if (btn.dataset.tab === 'tab-lifecycle' && chart) chart.resize();
+    if (btn.dataset.tab === 'tab-athena' && athenaChart) athenaChart.resize();
+  });
+});
+
+/* ═══════════════════════════════════════════════════
+   탭 1: 생명주기 비용 계산기
+═══════════════════════════════════════════════════ */
+
+/* 비용 계산 */
+function calcMonthlyCosts(logSizeGB, s3Days, glacierDays, glacierPrice) {
+  const pricing = getRegionPricing();
+  const s3Months = s3Days / 30;
+  const glacierMonths = glacierDays / 30;
+  const results = [];
+
+  for (let month = 1; month <= CONFIG.months; month++) {
+    let s3GB = 0, glacierGB = 0;
+    for (let batchMonth = 1; batchMonth <= month; batchMonth++) {
+      const age = month - batchMonth;
+      if (age < s3Months) {
+        s3GB += logSizeGB;
+      } else if (age < s3Months + glacierMonths) {
+        glacierGB += logSizeGB;
+      }
+    }
+    const s3Cost = s3GB * pricing.s3Standard;
+    const glacierCost = glacierGB * glacierPrice;
+    results.push({ month, s3GB, glacierGB, s3Cost, glacierCost, totalCost: s3Cost + glacierCost });
+  }
+  return results;
+}
+
+function calcSteadyState(logSizeGB, s3Days, glacierDays, glacierPrice) {
+  const pricing = getRegionPricing();
+  const s3Months = Math.min(s3Days / 30, CONFIG.months);
+  const glacierMonths = Math.min(glacierDays / 30, CONFIG.months);
+  const steadyS3GB = logSizeGB * s3Months;
+  const steadyGlacierGB = logSizeGB * glacierMonths;
+  return {
+    s3GB: steadyS3GB,
+    glacierGB: steadyGlacierGB,
+    s3Cost: steadyS3GB * pricing.s3Standard,
+    glacierCost: steadyGlacierGB * glacierPrice,
+    get total() { return this.s3Cost + this.glacierCost; },
+  };
+}
+
+/* Chart.js 탭1 */
+let chart = null;
+
+function initChart() {
+  const ctx = document.getElementById('cost-chart').getContext('2d');
+  chart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: Array.from({ length: CONFIG.months }, (_, i) => `${i + 1}월`),
+      datasets: [
+        {
+          label: 'S3 Standard', data: [],
+          backgroundColor: CONFIG.colors.s3Fill,
+          borderColor: CONFIG.colors.s3Border,
+          borderWidth: 1, stack: 'cost', order: 2,
+        },
+        {
+          label: 'S3 Glacier', data: [],
+          backgroundColor: CONFIG.colors.glacierFill,
+          borderColor: CONFIG.colors.glacierBorder,
+          borderWidth: 1, stack: 'cost', order: 2,
+        },
+        {
+          label: '누적 총 비용', data: [],
+          type: 'line',
+          borderColor: CONFIG.colors.cumulative,
+          backgroundColor: 'transparent',
+          borderWidth: 2.5,
+          pointRadius: 4,
+          pointBackgroundColor: CONFIG.colors.cumulative,
+          pointBorderColor: '#1a1a1a',
+          pointBorderWidth: 1.5,
+          tension: 0.3,
+          yAxisID: 'yRight', order: 1,
+        },
+      ],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, animation: { duration: 300 },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#2a2a2a', borderColor: 'rgba(255,255,255,0.15)', borderWidth: 1,
+          titleColor: '#e0e0e0', bodyColor: '#a0a0a0', padding: 10,
+          callbacks: {
+            label: (ctx) => {
+              if (ctx.dataset.label === '누적 총 비용') return ` 누적: $${ctx.raw.toFixed(4)}`;
+              return ` ${ctx.dataset.label}: $${ctx.raw.toFixed(4)}`;
+            },
+          },
+        },
+      },
+      scales: {
+        x: {
+          stacked: true,
+          ticks: { color: '#707070', font: { size: 12 } },
+          grid: { color: 'rgba(255,255,255,0.05)' },
+          border: { color: 'rgba(255,255,255,0.1)' },
+        },
+        y: {
+          stacked: true, position: 'left',
+          ticks: { color: '#707070', font: { size: 11 }, callback: v => `$${v.toFixed(2)}` },
+          grid: { color: 'rgba(255,255,255,0.05)' },
+          border: { color: 'rgba(255,255,255,0.1)' },
+          title: { display: true, text: '월 비용 ($)', color: '#707070', font: { size: 11 } },
+        },
+        yRight: {
+          position: 'right',
+          ticks: { color: '#F0997B', font: { size: 11 }, callback: v => `$${v.toFixed(2)}` },
+          grid: { drawOnChartArea: false },
+          border: { color: 'rgba(255,255,255,0.1)' },
+          title: { display: true, text: '누적 비용 ($)', color: '#F0997B', font: { size: 11 } },
+        },
+      },
+    },
+  });
+}
+
+function updateChart(monthlyData) {
+  chart.data.datasets[0].data = monthlyData.map(d => d.s3Cost);
+  chart.data.datasets[1].data = monthlyData.map(d => d.glacierCost);
+  chart.data.datasets[2].data = monthlyData.reduce((acc, d, i) => {
+    acc.push((acc[i - 1] || 0) + d.totalCost); return acc;
+  }, []);
+  chart.update();
+}
+
+function updateCards(monthlyData) {
+  const { logSizeGB, s3Days, glacierDays, glacierTier } = state;
+  const pricing = getRegionPricing();
+  const tierPrice = pricing.glacierTiers[glacierTier].price;
+  const steady = calcSteadyState(logSizeGB, s3Days, glacierDays, tierPrice);
+
+  const annualTotal   = monthlyData.reduce((s, d) => s + d.totalCost, 0);
+  const annualS3      = monthlyData.reduce((s, d) => s + d.s3Cost, 0);
+  const annualGlacier = monthlyData.reduce((s, d) => s + d.glacierCost, 0);
+
+  const s3OnlyMonthly = (steady.s3GB + steady.glacierGB) * pricing.s3Standard;
+  const savingsRate = s3OnlyMonthly > 0
+    ? ((s3OnlyMonthly - steady.total) / s3OnlyMonthly * 100) : 0;
+
+  document.getElementById('card-avg-monthly').textContent = formatUSD(steady.total);
+  document.getElementById('card-annual-total').textContent = formatUSD(annualTotal);
+  document.getElementById('card-s3-total').textContent = formatUSD(annualS3);
+  document.getElementById('card-glacier-total').textContent = formatUSD(annualGlacier);
+
+  const totalGB = steady.s3GB + steady.glacierGB;
+  document.getElementById('card-storage-size').textContent =
+    totalGB >= 1 ? `${totalGB.toFixed(1)} GB` : `${(totalGB * 1024).toFixed(0)} MB`;
+  document.getElementById('card-storage-sub').textContent =
+    `S3 ${steady.s3GB.toFixed(1)}GB + Glacier ${steady.glacierGB.toFixed(1)}GB`;
+  document.getElementById('card-savings-rate').textContent =
+    savingsRate > 0 ? `${savingsRate.toFixed(1)}%` : '—';
+}
+
+function updateTimeline() {
+  const { s3Days, glacierDays, glacierTier } = state;
+  const pricing = getRegionPricing();
+  const tierInfo = pricing.glacierTiers[glacierTier];
+
+  const s3Seg = document.getElementById('tl-s3');
+  const glacierSeg = document.getElementById('tl-glacier');
+
+  s3Seg.style.flex = s3Days;
+  glacierSeg.style.flex = glacierDays;
+  s3Seg.textContent = `S3 Standard (${s3Days}일)`;
+  glacierSeg.textContent = glacierDays > 0 ? `${tierInfo.label} (${glacierDays}일)` : '';
+  glacierSeg.style.display = glacierDays > 0 ? 'flex' : 'none';
+
+  document.getElementById('tl-label-s3').style.flex = s3Days;
+  document.getElementById('tl-label-glacier').style.flex = Math.max(glacierDays, 0);
+  document.getElementById('tl-label-s3').textContent = s3Days >= 60 ? `0일 → ${s3Days}일` : '';
+  document.getElementById('tl-label-glacier').textContent =
+    glacierDays >= 60 ? `${s3Days}일 → ${s3Days + glacierDays}일` : '';
+}
+
+function updateGlacierTierUI() {
+  const { glacierTier, glacierDays } = state;
+  const pricing = getRegionPricing();
+  const tier = pricing.glacierTiers[glacierTier];
+
+  // 티어 정보 표시
+  document.getElementById('glacier-tier-info').innerHTML =
+    `<span class="tier-retrieval">검색 시간: ${tier.retrieval}</span><br>
+     <span class="tier-min-storage">최소 보관: ${tier.minDays}일</span>`;
+
+  // 가격 참조 업데이트
+  document.getElementById('pref-glacier-price').innerHTML =
+    `<strong>${tier.label}:</strong> $${tier.price}/GB/월`;
+
+  // 레전드 레이블
+  document.getElementById('legend-glacier-label').textContent = tier.label;
+
+  // 최소 보관 기간 경고
+  const warning = document.getElementById('glacier-min-warning');
+  if (glacierDays > 0 && glacierDays < tier.minDays) {
+    warning.style.display = 'block';
+  } else {
+    warning.style.display = 'none';
+  }
+}
+
+function updateGlacierTierDropdownOptions() {
+  const pricing = getRegionPricing();
+  const sel = document.getElementById('select-glacier-tier');
+  const tiers = pricing.glacierTiers;
+  sel.options[0].text = `Glacier Instant Retrieval — $${tiers.instant.price}/GB/월`;
+  sel.options[1].text = `Glacier Flexible Retrieval — $${tiers.flexible.price}/GB/월`;
+  sel.options[2].text = `Glacier Deep Archive — $${tiers.deep.price}/GB/월`;
+}
+
+function updatePricingRefFooter() {
+  const pricing = getRegionPricing();
+  const regionData = CONFIG.regions[state.region];
+  document.getElementById('pref-s3-price').innerHTML =
+    `<strong>S3 Standard:</strong> $${pricing.s3Standard}/GB/월`;
+  document.getElementById('pref-region-note').textContent =
+    `기준: ${state.region} | 2024년 기준`;
+  document.getElementById('pref-athena-region-note').textContent =
+    `기준: ${state.region} | 2024년 기준`;
+
+  // Athena tab restore cost refs
+  const flexRestore = pricing.restore['glacier-flexible'];
+  const deepRestore = pricing.restore['glacier-deep'];
+  if (flexRestore) {
+    document.getElementById('pref-athena-flexible-restore').innerHTML =
+      `<strong>Glacier Flexible Expedited 복원:</strong> $${flexRestore.expedited}/GB`;
+  }
+  if (deepRestore) {
+    document.getElementById('pref-athena-deep-restore').innerHTML =
+      `<strong>Glacier Deep Archive Standard 복원:</strong> $${deepRestore.standard}/GB`;
+  }
+}
+
+function updateHeaderSubtitle() {
+  const indicator = state.customPricing ? ' (커스텀 가격)' : '';
+  document.getElementById('header-subtitle').textContent =
+    `생명주기 스토리지 비용 및 Athena 쿼리 비용을 시뮬레이션합니다 (${state.region} 기준${indicator})`;
+}
+
+function updateCustomPricingInputs() {
+  const regionData = CONFIG.regions[state.region];
+  const pricing = getRegionPricing();
+  // Update placeholders and values only if not custom
+  const s3Input = document.getElementById('input-custom-s3');
+  const glacierInput = document.getElementById('input-custom-glacier');
+  if (state.customS3Price === null) {
+    s3Input.value = regionData.s3Standard;
+  }
+  if (state.customGlacierPrice === null) {
+    glacierInput.value = pricing.glacierTiers[state.glacierTier].price;
+  }
+}
+
+function updateCustomIndicator() {
+  document.getElementById('custom-pricing-indicator').style.display =
+    state.customPricing ? 'inline' : 'none';
+}
+
+function updateAll1() {
+  const { logSizeGB, s3Days, glacierDays, glacierTier } = state;
+  const pricing = getRegionPricing();
+  const tierPrice = pricing.glacierTiers[glacierTier].price;
+  const monthlyData = calcMonthlyCosts(logSizeGB, s3Days, glacierDays, tierPrice);
+  updateChart(monthlyData);
+  updateCards(monthlyData);
+  updateTimeline();
+  updateGlacierTierUI();
+  updateGlacierTierDropdownOptions();
+  updatePricingRefFooter();
+  updateHeaderSubtitle();
+  updateCustomPricingInputs();
+  updateCustomIndicator();
+}
+
+/* Glacier 티어 선택 이벤트 */
+document.getElementById('select-glacier-tier').addEventListener('change', (e) => {
+  state.glacierTier = e.target.value;
+  const pricing = getRegionPricing();
+  const tier = pricing.glacierTiers[state.glacierTier];
+  // 최소 보관 기간보다 짧으면 자동 조정
+  if (state.glacierDays > 0 && state.glacierDays < tier.minDays) {
+    state.glacierDays = tier.minDays;
+    document.getElementById('slider-glacier-days').value = state.glacierDays;
+    document.getElementById('num-glacier-days').value = state.glacierDays;
+  }
+  // Update glacier custom input placeholder for new tier
+  if (state.customGlacierPrice === null) {
+    document.getElementById('input-custom-glacier').value = tier.price;
+  }
+  updateAll1();
+  updateAll2();
+});
+
+/* 리전 선택 이벤트 */
+document.getElementById('select-region').addEventListener('change', (e) => {
+  state.region = e.target.value;
+  // Reset custom pricing on region change
+  if (!state.customPricing) {
+    state.customS3Price = null;
+    state.customGlacierPrice = null;
+  }
+  updateAll1();
+  updateAll2();
+});
+
+/* 커스텀 가격 입력 */
+document.getElementById('input-custom-s3').addEventListener('input', (e) => {
+  const val = parseFloat(e.target.value);
+  if (!isNaN(val) && val > 0) {
+    state.customS3Price = val;
+    state.customPricing = true;
+    updateAll1();
+    updateAll2();
+  }
+});
+
+document.getElementById('input-custom-glacier').addEventListener('input', (e) => {
+  const val = parseFloat(e.target.value);
+  if (!isNaN(val) && val > 0) {
+    state.customGlacierPrice = val;
+    state.customPricing = true;
+    updateAll1();
+    updateAll2();
+  }
+});
+
+/* 기본값 복원 */
+document.getElementById('btn-restore-custom').addEventListener('click', () => {
+  state.customS3Price = null;
+  state.customGlacierPrice = null;
+  state.customPricing = false;
+  updateAll1();
+  updateAll2();
+});
+
+/* 리셋 탭1 */
+function resetDefaults1() {
+  state.logSizeGB = CONFIG.defaults.logSizeGB;
+  state.s3Days = CONFIG.defaults.s3Days;
+  state.glacierDays = CONFIG.defaults.glacierDays;
+  state.glacierTier = CONFIG.defaults.glacierTier;
+  state.region = CONFIG.defaultRegion;
+  state.customS3Price = null;
+  state.customGlacierPrice = null;
+  state.customPricing = false;
+
+  document.getElementById('slider-log-size').value  = state.logSizeGB;
+  document.getElementById('num-log-size').value     = state.logSizeGB;
+  document.getElementById('slider-s3-days').value   = state.s3Days;
+  document.getElementById('num-s3-days').value      = state.s3Days;
+  document.getElementById('slider-glacier-days').value = state.glacierDays;
+  document.getElementById('num-glacier-days').value    = state.glacierDays;
+  document.getElementById('select-glacier-tier').value = state.glacierTier;
+  document.getElementById('select-region').value = state.region;
+
+  updateAll1();
+}
+
+/* ═══════════════════════════════════════════════════
+   탭 2: Athena 쿼리 비용 분석
+═══════════════════════════════════════════════════ */
+
+/* Athena 스캔량 계산 */
+function calcEffectiveScan(scanGB, partitionEnabled, compressEnabled) {
+  let effective = scanGB;
+  if (partitionEnabled)  effective *= 0.30;   // 70% 감소
+  if (compressEnabled)   effective *= 0.20;   // 추가 80% 감소
+  const minGB = CONFIG.pricing.athenaMinScanMB / 1024;
+  return Math.max(effective, minGB);
+}
+
+/* Athena 월 비용 계산 */
+function calcAthenaMonthlyCost(queryCount, scanGB, partitionEnabled, compressEnabled) {
+  const effectiveScanGB = calcEffectiveScan(scanGB, partitionEnabled, compressEnabled);
+  const scanCostPerQuery = effectiveScanGB / 1024 * CONFIG.pricing.athenaScanPerTB;  // GB → TB
+  const getCostPerQuery  = CONFIG.pricing.s3GetPerQuery;
+  const totalPerQuery    = scanCostPerQuery + getCostPerQuery;
+  const monthlyScan = scanCostPerQuery * queryCount;
+  const monthlyGet  = getCostPerQuery  * queryCount;
+  return { monthlyScan, monthlyGet, totalPerQuery, effectiveScanGB };
+}
+
+/* 절감률 계산 (파티셔닝/압축 없는 경우 대비) */
+function calcAthenaSavings(scanGB, partitionEnabled, compressEnabled) {
+  const baseline = Math.max(scanGB, CONFIG.pricing.athenaMinScanMB / 1024);
+  const effective = calcEffectiveScan(scanGB, partitionEnabled, compressEnabled);
+  if (baseline <= 0) return 0;
+  return Math.max(0, (baseline - effective) / baseline * 100);
+}
+
+/* Chart.js 탭2 */
+let athenaChart = null;
+
+function initAthenaChart() {
+  const ctx = document.getElementById('athena-chart').getContext('2d');
+  athenaChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: Array.from({ length: CONFIG.months }, (_, i) => `${i + 1}월`),
+      datasets: [
+        {
+          label: 'Athena 스캔 비용', data: [],
+          backgroundColor: CONFIG.colors.athenaScanFill,
+          borderColor: CONFIG.colors.athenaScanBorder,
+          borderWidth: 1, stack: 'athena', order: 2,
+        },
+        {
+          label: 'S3 GET 요청 비용', data: [],
+          backgroundColor: CONFIG.colors.glacierFill,
+          borderColor: CONFIG.colors.glacierBorder,
+          borderWidth: 1, stack: 'athena', order: 2,
+        },
+      ],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, animation: { duration: 300 },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#2a2a2a', borderColor: 'rgba(255,255,255,0.15)', borderWidth: 1,
+          titleColor: '#e0e0e0', bodyColor: '#a0a0a0', padding: 10,
+          callbacks: {
+            label: ctx => ` ${ctx.dataset.label}: $${ctx.raw.toFixed(4)}`,
+          },
+        },
+      },
+      scales: {
+        x: {
+          stacked: true,
+          ticks: { color: '#707070', font: { size: 12 } },
+          grid: { color: 'rgba(255,255,255,0.05)' },
+          border: { color: 'rgba(255,255,255,0.1)' },
+        },
+        y: {
+          stacked: true,
+          ticks: { color: '#707070', font: { size: 11 }, callback: v => `$${v.toFixed(4)}` },
+          grid: { color: 'rgba(255,255,255,0.05)' },
+          border: { color: 'rgba(255,255,255,0.1)' },
+          title: { display: true, text: '월 비용 ($)', color: '#707070', font: { size: 11 } },
+        },
+      },
+    },
+  });
+}
+
+/* 비교 테이블 데이터 */
+function buildComparisonTable(queryCount, scanGB, partitionEnabled, compressEnabled) {
+  const pricing = getRegionPricing();
+  const effectiveScan = calcEffectiveScan(scanGB, partitionEnabled, compressEnabled);
+  const scanCostPerQuery = effectiveScan / 1024 * CONFIG.pricing.athenaScanPerTB;
+  const monthlyQueryCost = (scanCostPerQuery + CONFIG.pricing.s3GetPerQuery) * queryCount;
+
+  const tiers = [
+    {
+      name: 'S3 Standard',
+      key: 'standard',
+      canQuery: true,
+      restore: null,
+      time: '즉시',
+    },
+    {
+      name: 'S3 Standard-IA',
+      key: 'standard-ia',
+      canQuery: true,
+      restore: null,
+      time: '즉시',
+    },
+    {
+      name: 'Glacier Instant Retrieval',
+      key: 'glacier-instant',
+      canQuery: true,
+      restore: null,
+      time: '밀리초',
+    },
+    {
+      name: 'Glacier Flexible Retrieval',
+      key: 'glacier-flexible',
+      canQuery: false,
+      restore: pricing.restore['glacier-flexible'],
+      time: '1분~12시간',
+    },
+    {
+      name: 'Glacier Deep Archive',
+      key: 'glacier-deep',
+      canQuery: false,
+      restore: pricing.restore['glacier-deep'],
+      time: '12~48시간',
+    },
+  ];
+
+  return tiers.map(t => {
+    let queryCostDisplay = '—';
+    let restoreCostDisplay = '—';
+
+    if (t.canQuery) {
+      queryCostDisplay = formatUSD(monthlyQueryCost);
+    }
+
+    if (t.restore) {
+      // 가장 저렴한 복원 옵션 표시
+      const cheapestRestore = t.restore.standard || t.restore.bulk;
+      restoreCostDisplay = `$${cheapestRestore}/GB~`;
+    }
+
+    return { ...t, queryCostDisplay, restoreCostDisplay };
+  });
+}
+
+function renderComparisonTable(rows) {
+  const tbody = document.getElementById('athena-table-body');
+  tbody.innerHTML = rows.map(row => `
+    <tr>
+      <td style="color:var(--color-text-primary); font-weight:500;">${row.name}</td>
+      <td>${row.canQuery ? '<span class="badge-ok">✅</span>' : '<span class="badge-no">❌</span>'}</td>
+      <td>${row.restore ? '<span class="badge-warn">복원 필요</span>' : '<span style="color:var(--color-text-tertiary);">—</span>'}</td>
+      <td style="font-family:var(--font-mono); font-size:13px; color:${row.canQuery ? 'var(--color-text-info)' : 'var(--color-text-tertiary)'};">${row.queryCostDisplay}</td>
+      <td style="font-family:var(--font-mono); font-size:13px; color:${row.restore ? 'var(--color-text-warning)' : 'var(--color-text-tertiary)'};">${row.restoreCostDisplay}</td>
+      <td style="color:var(--color-text-secondary);">${row.time}</td>
+    </tr>
+  `).join('');
+}
+
+function updateAll2() {
+  const { queryCount, scanGB, partitionEnabled, compressEnabled, athenaTier } = state;
+  const { monthlyScan, monthlyGet, totalPerQuery, effectiveScanGB } =
+    calcAthenaMonthlyCost(queryCount, scanGB, partitionEnabled, compressEnabled);
+
+  const monthlyTotal = monthlyScan + monthlyGet;
+  const annualTotal  = monthlyTotal * 12;
+  const savingsRate  = calcAthenaSavings(scanGB, partitionEnabled, compressEnabled);
+
+  /* 요약 카드 */
+  document.getElementById('athena-card-monthly').textContent = formatUSD(monthlyTotal);
+  document.getElementById('athena-card-annual').textContent  = formatUSD(annualTotal);
+  document.getElementById('athena-card-per-query').textContent = formatUSD(totalPerQuery);
+  document.getElementById('athena-card-savings').textContent =
+    savingsRate > 0 ? `${savingsRate.toFixed(1)}%` : '0%';
+
+  /* 실제 스캔량 표시 */
+  const scanDisplay = effectiveScanGB >= 1
+    ? `${effectiveScanGB.toFixed(3)} GB`
+    : `${(effectiveScanGB * 1024).toFixed(1)} MB`;
+  document.getElementById('athena-effective-scan-value').textContent = scanDisplay;
+
+  let breakdownParts = [];
+  if (partitionEnabled)  breakdownParts.push('파티셔닝 -70%');
+  if (compressEnabled)   breakdownParts.push('압축 -80%');
+  const minApplied = effectiveScanGB <= CONFIG.pricing.athenaMinScanMB / 1024 + 0.0001;
+  if (minApplied && (partitionEnabled || compressEnabled)) breakdownParts.push('최소 10MB 적용됨');
+  document.getElementById('athena-scan-breakdown').textContent =
+    breakdownParts.length > 0 ? breakdownParts.join(' → ') : '최적화 미적용';
+
+  /* 차트: 12개월 (매달 동일한 쿼리 횟수 가정) */
+  athenaChart.data.datasets[0].data = Array(12).fill(monthlyScan);
+  athenaChart.data.datasets[1].data = Array(12).fill(monthlyGet);
+  athenaChart.update();
+
+  /* 복원 필요 여부 노트 */
+  const nonQueryable = ['glacier-flexible', 'glacier-deep'];
+  document.getElementById('athena-tier-restore-note').style.display =
+    nonQueryable.includes(athenaTier) ? 'block' : 'none';
+
+  /* 비교 테이블 */
+  const rows = buildComparisonTable(queryCount, scanGB, partitionEnabled, compressEnabled);
+  renderComparisonTable(rows);
+}
+
+/* 리셋 탭2 */
+function resetDefaults2() {
+  state.queryCount        = CONFIG.defaults.queryCount;
+  state.scanGB            = CONFIG.defaults.scanGB;
+  state.partitionEnabled  = CONFIG.defaults.partitionEnabled;
+  state.compressEnabled   = CONFIG.defaults.compressEnabled;
+  state.athenaTier        = CONFIG.defaults.athenaTier;
+
+  document.getElementById('slider-query-count').value = state.queryCount;
+  document.getElementById('num-query-count').value    = state.queryCount;
+  document.getElementById('slider-scan-gb').value     = state.scanGB;
+  document.getElementById('num-scan-gb').value        = state.scanGB;
+  document.getElementById('toggle-partition').checked = state.partitionEnabled;
+  document.getElementById('toggle-compress').checked  = state.compressEnabled;
+  document.getElementById('select-athena-tier').value = state.athenaTier;
+
+  updateAll2();
+}
+
+/* ─────────────────────────────────────────────────
+   슬라이더 ↔ 숫자 입력 양방향 동기화
+───────────────────────────────────────────────── */
+function bindControl(sliderId, numId, stateKey, min, max, step, onUpdate) {
+  const slider   = document.getElementById(sliderId);
+  const numInput = document.getElementById(numId);
+  const debouncedFn = debounce(onUpdate, 60);
+
+  slider.addEventListener('input', () => {
+    const val = parseFloat(slider.value);
+    numInput.value = val;
+    state[stateKey] = val;
+    debouncedFn();
+  });
+
+  numInput.addEventListener('input', () => {
+    let val = parseFloat(numInput.value);
+    if (isNaN(val)) return;
+    val = Math.max(min, Math.min(max, val));
+    slider.value = val;
+    state[stateKey] = val;
+    debouncedFn();
+  });
+
+  numInput.addEventListener('blur', () => {
+    let val = parseFloat(numInput.value);
+    if (isNaN(val)) val = CONFIG.defaults[stateKey];
+    val = Math.max(min, Math.min(max, val));
+    numInput.value = val;
+    slider.value = val;
+    state[stateKey] = val;
+    debouncedFn();
+  });
+}
+
+/* ─────────────────────────────────────────────────
+   초기화 진입점
+───────────────────────────────────────────────── */
+document.addEventListener('DOMContentLoaded', () => {
+  /* 차트 초기화 */
+  initChart();
+  initAthenaChart();
+
+  /* 탭1 컨트롤 바인딩 */
+  bindControl('slider-log-size',     'num-log-size',     'logSizeGB',   0.1,  100, 0.1, updateAll1);
+  bindControl('slider-s3-days',      'num-s3-days',      's3Days',       30,  365,   1, updateAll1);
+  bindControl('slider-glacier-days', 'num-glacier-days', 'glacierDays',   0,  730,   1, () => {
+    // Glacier days 변경 시 최소 보관 기간 체크
+    const pricing = getRegionPricing();
+    const tier = pricing.glacierTiers[state.glacierTier];
+    if (state.glacierDays > 0 && state.glacierDays < tier.minDays) {
+      document.getElementById('glacier-min-warning').style.display = 'block';
+    } else {
+      document.getElementById('glacier-min-warning').style.display = 'none';
+    }
+    updateAll1();
+  });
+
+  document.getElementById('btn-reset-1').addEventListener('click', resetDefaults1);
+
+  /* 탭2 컨트롤 바인딩 */
+  bindControl('slider-query-count', 'num-query-count', 'queryCount', 1, 100, 1, updateAll2);
+  bindControl('slider-scan-gb',     'num-scan-gb',     'scanGB',  0.01,  10, 0.01, updateAll2);
+
+  document.getElementById('toggle-partition').addEventListener('change', (e) => {
+    state.partitionEnabled = e.target.checked;
+    updateAll2();
+  });
+  document.getElementById('toggle-compress').addEventListener('change', (e) => {
+    state.compressEnabled = e.target.checked;
+    updateAll2();
+  });
+  document.getElementById('select-athena-tier').addEventListener('change', (e) => {
+    state.athenaTier = e.target.value;
+    updateAll2();
+  });
+
+  document.getElementById('btn-reset-2').addEventListener('click', resetDefaults2);
+
+  /* 초기 렌더링 */
+  updateAll1();
+  updateAll2();
+});
+</script>
+</body>
+</html>
