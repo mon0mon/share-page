@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>EC2 Instance Profile + IMDS 자격증명 흐름</title>
+  <style>
+    /* ── Base Styles ── */
+    :root {
+      --p: #e0e0e0;
+      --s: #a0a0a0;
+      --t: #707070;
+      --bg2: #2a2a2a;
+      --b: #404040;
+      --color-text-primary: #e0e0e0;
+      --color-text-secondary: #a0a0a0;
+      --color-text-tertiary: #707070;
+      --color-text-info: #85B7EB;
+      --color-text-danger: #F09595;
+      --color-text-success: #97C459;
+      --color-text-warning: #EF9F27;
+      --color-background-primary: #1a1a1a;
+      --color-background-secondary: #2a2a2a;
+      --color-background-tertiary: #111111;
+      --color-background-info: #0C447C;
+      --color-background-danger: #791F1F;
+      --color-background-success: #27500A;
+      --color-background-warning: #633806;
+      --color-border-primary: rgba(255,255,255,0.4);
+      --color-border-secondary: rgba(255,255,255,0.3);
+      --color-border-tertiary: rgba(255,255,255,0.15);
+      --color-border-info: #85B7EB;
+      --color-border-danger: #F09595;
+      --color-border-success: #97C459;
+      --color-border-warning: #EF9F27;
+      --font-sans: system-ui, -apple-system, sans-serif;
+      --font-serif: Georgia, serif;
+      --font-mono: ui-monospace, monospace;
+      --border-radius-md: 8px;
+      --border-radius-lg: 12px;
+      --border-radius-xl: 16px;
+
+      /* Node palette */
+      --c-gray-fill: #444441;
+      --c-gray-stroke: #B4B2A9;
+      --c-purple-fill: #3C3489;
+      --c-purple-stroke: #AFA9EC;
+      --c-teal-fill: #085041;
+      --c-teal-stroke: #5DCAA5;
+      --c-coral-fill: #712B13;
+      --c-coral-stroke: #F0997B;
+      --c-blue-fill: #0C447C;
+      --c-blue-stroke: #85B7EB;
+    }
+
+    body {
+      margin: 0;
+      padding: 1rem;
+      font-family: var(--font-sans);
+      background: var(--color-background-primary);
+      color: var(--color-text-primary);
+      box-sizing: border-box;
+    }
+    *, *::before, *::after { box-sizing: inherit; }
+
+    button {
+      background: transparent;
+      border: 0.5px solid var(--color-border-secondary);
+      border-radius: var(--border-radius-md);
+      color: var(--color-text-primary);
+      padding: 6px 14px;
+      font-size: 14px;
+      cursor: pointer;
+      font-family: var(--font-sans);
+    }
+    button:hover { background: var(--color-background-secondary); }
+    button:active { transform: scale(0.98); }
+
+    /* ── Layout ── */
+    .page-wrapper {
+      max-width: 960px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    .page-title {
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--color-text-primary);
+      text-align: center;
+      margin: 0;
+      padding: 0.5rem 0;
+      border-bottom: 1px solid var(--color-border-tertiary);
+    }
+
+    .step-badge {
+      display: inline-block;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--color-text-warning);
+      border: 1px solid var(--color-border-warning);
+      border-radius: 4px;
+      padding: 2px 8px;
+      margin-bottom: 6px;
+    }
+
+    /* ── SVG canvas ── */
+    .svg-container {
+      background: var(--color-background-tertiary);
+      border: 1px solid var(--color-border-tertiary);
+      border-radius: var(--border-radius-lg);
+      overflow: hidden;
+      width: 100%;
+    }
+    #diagram {
+      width: 100%;
+      height: auto;
+      display: block;
+    }
+
+    /* ── Info panel ── */
+    .info-panel {
+      background: var(--color-background-secondary);
+      border: 1px solid var(--color-border-tertiary);
+      border-radius: var(--border-radius-lg);
+      padding: 1rem 1.25rem;
+      min-height: 160px;
+    }
+    .info-panel h3 {
+      margin: 0 0 0.5rem 0;
+      font-size: 15px;
+      color: var(--color-text-primary);
+    }
+    .info-panel p {
+      margin: 0 0 0.5rem 0;
+      font-size: 13px;
+      color: var(--color-text-secondary);
+      line-height: 1.6;
+    }
+
+    /* Credential chain checklist */
+    .chain-list {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      margin: 0.5rem 0;
+    }
+    .chain-item {
+      font-size: 13px;
+      font-family: var(--font-mono);
+      padding: 4px 8px;
+      border-radius: 4px;
+      background: rgba(255,255,255,0.04);
+    }
+    .chain-item.fail { color: var(--color-text-danger); }
+    .chain-item.pass { color: var(--color-text-success); background: rgba(151,196,89,0.1); }
+
+    /* IMDSv1 vs v2 comparison box */
+    .imds-compare {
+      display: flex;
+      gap: 0.75rem;
+      margin: 0.5rem 0;
+    }
+    .imds-box {
+      flex: 1;
+      border-radius: var(--border-radius-md);
+      padding: 8px 10px;
+      font-size: 12px;
+      line-height: 1.5;
+    }
+    .imds-box.v1 {
+      background: rgba(240,149,117,0.12);
+      border: 1px solid rgba(240,149,117,0.4);
+      color: var(--color-text-danger);
+    }
+    .imds-box.v2 {
+      background: rgba(93,202,165,0.1);
+      border: 1px solid rgba(93,202,165,0.4);
+      color: var(--color-text-success);
+    }
+    .imds-box strong {
+      display: block;
+      margin-bottom: 3px;
+      font-size: 13px;
+    }
+
+    /* JSON preview */
+    .json-preview {
+      background: var(--color-background-tertiary);
+      border: 1px solid var(--color-border-tertiary);
+      border-radius: var(--border-radius-md);
+      padding: 10px 14px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--color-text-info);
+      margin: 0.5rem 0;
+      white-space: pre;
+      line-height: 1.6;
+    }
+
+    /* Controls */
+    .controls {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.75rem;
+    }
+    .step-counter {
+      font-size: 13px;
+      color: var(--color-text-tertiary);
+      min-width: 60px;
+      text-align: center;
+    }
+    .btn-primary {
+      border-color: var(--color-border-info);
+      color: var(--color-text-info);
+    }
+    .btn-primary:hover { background: rgba(12,68,124,0.4); }
+
+    /* SVG element transitions */
+    .node-group, .arrow-group { transition: opacity 0.35s ease; }
+    .active-arrow {
+      stroke-dasharray: 8 4;
+      animation: dash-flow 0.8s linear infinite;
+    }
+    @keyframes dash-flow {
+      to { stroke-dashoffset: -24; }
+    }
+    .loop-arrow {
+      stroke-dasharray: 6 4;
+      animation: dash-flow 1.2s linear infinite;
+    }
+  </style>
+</head>
+<body>
+<div class="page-wrapper">
+
+  <h1 class="page-title">EC2 Instance Profile + IMDS 자격증명 흐름</h1>
+
+  <!-- SVG Diagram -->
+  <div class="svg-container">
+    <svg id="diagram" viewBox="0 0 920 480" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <!-- Arrow markers: one per color -->
+        <marker id="arr-gray" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+          <path d="M0,0 L0,6 L8,3 z" fill="#B4B2A9"/>
+        </marker>
+        <marker id="arr-purple" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+          <path d="M0,0 L0,6 L8,3 z" fill="#AFA9EC"/>
+        </marker>
+        <marker id="arr-teal" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+          <path d="M0,0 L0,6 L8,3 z" fill="#5DCAA5"/>
+        </marker>
+        <marker id="arr-coral" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+          <path d="M0,0 L0,6 L8,3 z" fill="#F0997B"/>
+        </marker>
+        <marker id="arr-blue" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+          <path d="M0,0 L0,6 L8,3 z" fill="#85B7EB"/>
+        </marker>
+        <!-- Dim marker -->
+        <marker id="arr-dim" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+          <path d="M0,0 L0,6 L8,3 z" fill="#555"/>
+        </marker>
+      </defs>
+
+      <!-- ────────────────────────────────────────────
+           NODE GROUPS
+           Positions (cx, cy):
+             console  : (90, 100)
+             eb       : (260, 100)
+             ec2      : (480, 100)
+             imds     : (480, 250)
+             sts      : (480, 380)
+             s3       : (340, 460)
+             sns      : (480, 460)
+             cw       : (620, 460)
+             app      : (680, 100)  — SDK/App inside EC2
+      ──────────────────────────────────────────── -->
+
+      <!-- Console node -->
+      <g id="node-console" class="node-group">
+        <rect x="20" y="68" width="140" height="64" rx="10"
+              fill="#444441" stroke="#B4B2A9" stroke-width="1.5"/>
+        <text x="90" y="93" text-anchor="middle" font-size="11" fill="#B4B2A9" font-family="system-ui">AWS 콘솔</text>
+        <text x="90" y="111" text-anchor="middle" font-size="10" fill="#8c8b83" font-family="system-ui">Management Console</text>
+        <text x="90" y="124" text-anchor="middle" font-size="10" fill="#B4B2A9" font-family="system-ui" font-style="italic">NeoventuresAppServiceRole</text>
+      </g>
+
+      <!-- EB node -->
+      <g id="node-eb" class="node-group">
+        <rect x="190" y="68" width="140" height="64" rx="10"
+              fill="#444441" stroke="#B4B2A9" stroke-width="1.5"/>
+        <text x="260" y="93" text-anchor="middle" font-size="11" fill="#B4B2A9" font-family="system-ui">Elastic Beanstalk</text>
+        <text x="260" y="111" text-anchor="middle" font-size="10" fill="#8c8b83" font-family="system-ui">EB 환경</text>
+        <text x="260" y="124" text-anchor="middle" font-size="10" fill="#B4B2A9" font-family="system-ui" font-style="italic">Instance Profile 지정</text>
+      </g>
+
+      <!-- EC2 node (outer container) -->
+      <g id="node-ec2" class="node-group">
+        <rect x="370" y="52" width="280" height="96" rx="10"
+              fill="#3C3489" stroke="#AFA9EC" stroke-width="1.5"/>
+        <text x="510" y="74" text-anchor="middle" font-size="11" fill="#AFA9EC" font-family="system-ui">EC2 인스턴스</text>
+        <!-- App inside EC2 -->
+        <rect x="385" y="83" width="118" height="50" rx="7"
+              fill="#2e2870" stroke="#8078cc" stroke-width="1"/>
+        <text x="444" y="103" text-anchor="middle" font-size="10" fill="#AFA9EC" font-family="system-ui">Spring Boot App</text>
+        <text x="444" y="118" text-anchor="middle" font-size="9" fill="#8078cc" font-family="system-ui">DefaultCredentialsProvider</text>
+        <!-- Profile badge inside EC2 -->
+        <rect x="515" y="83" width="120" height="50" rx="7"
+              fill="#2e2870" stroke="#8078cc" stroke-width="1"/>
+        <text x="575" y="103" text-anchor="middle" font-size="10" fill="#AFA9EC" font-family="system-ui">Instance Profile</text>
+        <text x="575" y="118" text-anchor="middle" font-size="9" fill="#8078cc" font-family="system-ui">NeoventuresAppServiceRole</text>
+      </g>
+
+      <!-- IMDS node -->
+      <g id="node-imds" class="node-group">
+        <rect x="390" y="220" width="180" height="64" rx="10"
+              fill="#085041" stroke="#5DCAA5" stroke-width="1.5"/>
+        <text x="480" y="245" text-anchor="middle" font-size="11" fill="#5DCAA5" font-family="system-ui">IMDS</text>
+        <text x="480" y="261" text-anchor="middle" font-size="10" fill="#3d9b7e" font-family="monospace">169.254.169.254</text>
+        <text x="480" y="276" text-anchor="middle" font-size="9" fill="#5DCAA5" font-family="system-ui">EC2 하이퍼바이저 제공</text>
+      </g>
+
+      <!-- STS node -->
+      <g id="node-sts" class="node-group">
+        <rect x="390" y="348" width="180" height="64" rx="10"
+              fill="#712B13" stroke="#F0997B" stroke-width="1.5"/>
+        <text x="480" y="373" text-anchor="middle" font-size="11" fill="#F0997B" font-family="system-ui">AWS STS</text>
+        <text x="480" y="389" text-anchor="middle" font-size="10" fill="#c07055" font-family="system-ui">Security Token Service</text>
+        <text x="480" y="403" text-anchor="middle" font-size="9" fill="#F0997B" font-family="system-ui">임시 자격증명 발급</text>
+      </g>
+
+      <!-- S3 node -->
+      <g id="node-s3" class="node-group">
+        <rect x="260" y="440" width="110" height="50" rx="8"
+              fill="#0C447C" stroke="#85B7EB" stroke-width="1.5"/>
+        <text x="315" y="462" text-anchor="middle" font-size="11" fill="#85B7EB" font-family="system-ui">Amazon S3</text>
+        <text x="315" y="479" text-anchor="middle" font-size="9" fill="#5a8fbf" font-family="system-ui">이미지/파일 저장</text>
+      </g>
+
+      <!-- SNS node -->
+      <g id="node-sns" class="node-group">
+        <rect x="420" y="440" width="110" height="50" rx="8"
+              fill="#0C447C" stroke="#85B7EB" stroke-width="1.5"/>
+        <text x="475" y="462" text-anchor="middle" font-size="11" fill="#85B7EB" font-family="system-ui">Amazon SNS</text>
+        <text x="475" y="479" text-anchor="middle" font-size="9" fill="#5a8fbf" font-family="system-ui">푸시 알림</text>
+      </g>
+
+      <!-- CloudWatch node -->
+      <g id="node-cw" class="node-group">
+        <rect x="580" y="440" width="120" height="50" rx="8"
+              fill="#0C447C" stroke="#85B7EB" stroke-width="1.5"/>
+        <text x="640" y="462" text-anchor="middle" font-size="11" fill="#85B7EB" font-family="system-ui">CloudWatch</text>
+        <text x="640" y="479" text-anchor="middle" font-size="9" fill="#5a8fbf" font-family="system-ui">로그/메트릭</text>
+      </g>
+
+      <!-- ────────────────────────────────────────────
+           ARROW GROUPS (hidden by default, shown per step)
+      ──────────────────────────────────────────── -->
+
+      <!-- STEP 1: Console → EB (profile assignment) -->
+      <g id="arrow-step1" class="arrow-group" opacity="0">
+        <line x1="160" y1="100" x2="188" y2="100"
+              stroke="#B4B2A9" stroke-width="2" marker-end="url(#arr-gray)" class="active-arrow"/>
+        <text x="174" y="92" text-anchor="middle" font-size="10" fill="#B4B2A9" font-family="system-ui">지정</text>
+      </g>
+
+      <!-- STEP 2: EB → EC2 (instance creation + profile attach) -->
+      <g id="arrow-step2" class="arrow-group" opacity="0">
+        <line x1="330" y1="100" x2="368" y2="100"
+              stroke="#AFA9EC" stroke-width="2" marker-end="url(#arr-purple)" class="active-arrow"/>
+        <text x="349" y="92" text-anchor="middle" font-size="10" fill="#AFA9EC" font-family="system-ui">생성+부착</text>
+      </g>
+
+      <!-- STEP 3: App searches chain (inside EC2, annotated) -->
+      <g id="arrow-step3" class="arrow-group" opacity="0">
+        <!-- small pulse circle on App node -->
+        <circle cx="444" cy="108" r="26" fill="none" stroke="#AFA9EC" stroke-width="1.5"
+                stroke-dasharray="4 3" opacity="0.7" class="active-arrow"/>
+      </g>
+
+      <!-- STEP 4: App → IMDS PUT token -->
+      <g id="arrow-step4" class="arrow-group" opacity="0">
+        <line x1="444" y1="148" x2="454" y2="218"
+              stroke="#5DCAA5" stroke-width="2" marker-end="url(#arr-teal)" class="active-arrow"/>
+        <text x="430" y="192" text-anchor="middle" font-size="10" fill="#5DCAA5" font-family="system-ui" transform="rotate(-8,430,192)">PUT /token</text>
+        <!-- Return arrow -->
+        <line x1="468" y1="218" x2="458" y2="148"
+              stroke="#5DCAA5" stroke-width="1.5" stroke-dasharray="5 3" marker-end="url(#arr-teal)" opacity="0.7"/>
+        <text x="498" y="186" text-anchor="middle" font-size="10" fill="#5DCAA5" font-family="system-ui" transform="rotate(-8,498,186)">세션 토큰</text>
+      </g>
+
+      <!-- STEP 5: IMDS → STS and back with creds -->
+      <g id="arrow-step5" class="arrow-group" opacity="0">
+        <!-- App → IMDS GET creds -->
+        <line x1="444" y1="148" x2="454" y2="218"
+              stroke="#5DCAA5" stroke-width="2" marker-end="url(#arr-teal)" class="active-arrow"/>
+        <text x="418" y="188" text-anchor="middle" font-size="9" fill="#5DCAA5" font-family="system-ui" transform="rotate(-8,418,188)">GET /security-credentials</text>
+        <!-- IMDS → STS -->
+        <line x1="480" y1="284" x2="480" y2="346"
+              stroke="#F0997B" stroke-width="2" marker-end="url(#arr-coral)" class="active-arrow"/>
+        <text x="510" y="320" text-anchor="middle" font-size="10" fill="#F0997B" font-family="system-ui">AssumeRole</text>
+        <!-- STS → IMDS return -->
+        <line x1="466" y1="346" x2="466" y2="284"
+              stroke="#F0997B" stroke-width="1.5" stroke-dasharray="5 3" marker-end="url(#arr-coral)" opacity="0.7"/>
+        <!-- IMDS → App creds return -->
+        <line x1="468" y1="218" x2="458" y2="148"
+              stroke="#5DCAA5" stroke-width="1.5" stroke-dasharray="5 3" marker-end="url(#arr-teal)" opacity="0.7"/>
+        <text x="500" y="175" text-anchor="middle" font-size="9" fill="#5DCAA5" font-family="system-ui">AccessKey+Token</text>
+      </g>
+
+      <!-- STEP 6: App → AWS Services -->
+      <g id="arrow-step6" class="arrow-group" opacity="0">
+        <!-- App → S3 -->
+        <line x1="415" y1="148" x2="330" y2="438"
+              stroke="#85B7EB" stroke-width="1.8" marker-end="url(#arr-blue)" class="active-arrow"/>
+        <!-- App → SNS -->
+        <line x1="444" y1="148" x2="460" y2="438"
+              stroke="#85B7EB" stroke-width="1.8" marker-end="url(#arr-blue)" class="active-arrow"/>
+        <!-- App → CW -->
+        <line x1="475" y1="148" x2="610" y2="438"
+              stroke="#85B7EB" stroke-width="1.8" marker-end="url(#arr-blue)" class="active-arrow"/>
+        <!-- Renew loop: App → IMDS (dashed loop) -->
+        <path d="M 390 108 C 330 108 310 250 390 250" fill="none"
+              stroke="#5DCAA5" stroke-width="1.5" marker-end="url(#arr-teal)" class="loop-arrow" opacity="0.8"/>
+        <text x="318" y="200" text-anchor="middle" font-size="10" fill="#5DCAA5" font-family="system-ui">자동 갱신</text>
+        <text x="318" y="214" text-anchor="middle" font-size="9" fill="#5DCAA5" font-family="system-ui">(만료 전)</text>
+      </g>
+
+      <!-- Vertical connector lines (static structure hints) -->
+      <line x1="480" y1="148" x2="480" y2="218" stroke="#333" stroke-width="1" stroke-dasharray="3 4"/>
+      <line x1="480" y1="284" x2="480" y2="348" stroke="#333" stroke-width="1" stroke-dasharray="3 4"/>
+
+    </svg>
+  </div>
+
+  <!-- Info Panel -->
+  <div class="info-panel" id="info-panel">
+    <div class="step-badge" id="step-label">Step 1 / 6</div>
+    <h3 id="info-title">콘솔 설정</h3>
+    <div id="info-body"></div>
+  </div>
+
+  <!-- Controls -->
+  <div class="controls">
+    <button id="btn-reset">↺ 리셋</button>
+    <button id="btn-prev">← 이전</button>
+    <span class="step-counter" id="step-counter">1 / 6</span>
+    <button id="btn-next" class="btn-primary">다음 →</button>
+  </div>
+
+</div>
+
+<script>
+// ══════════════════════════════════════════════════════
+// CONSTANTS
+// ══════════════════════════════════════════════════════
+const TOTAL_STEPS = 6;
+
+// Nodes active per step (node IDs that should be fully visible)
+const STEP_ACTIVE_NODES = {
+  1: ['node-console', 'node-eb'],
+  2: ['node-eb', 'node-ec2'],
+  3: ['node-ec2'],
+  4: ['node-ec2', 'node-imds'],
+  5: ['node-ec2', 'node-imds', 'node-sts'],
+  6: ['node-ec2', 'node-imds', 'node-s3', 'node-sns', 'node-cw'],
+};
+
+// All node IDs
+const ALL_NODES = [
+  'node-console', 'node-eb', 'node-ec2',
+  'node-imds', 'node-sts', 'node-s3', 'node-sns', 'node-cw',
+];
+
+// All arrow group IDs
+const ALL_ARROWS = [
+  'arrow-step1', 'arrow-step2', 'arrow-step3',
+  'arrow-step4', 'arrow-step5', 'arrow-step6',
+];
+
+// Step metadata
+const STEPS = [
+  {
+    title: 'Step 1 — 콘솔 설정: Instance Profile 지정',
+    body: () => `
+      <p>AWS 콘솔에서 Elastic Beanstalk 환경의 <strong>Instance Profile</strong>로
+      <code>NeoventuresAppServiceRole</code>을 지정한다.</p>
+      <p>이 IAM Role에는 S3, SNS, CloudWatch 등에 접근할 수 있는 권한 정책이 연결되어 있다.
+      이 설정이 이후 모든 자격증명 흐름의 시작점이다.</p>
+    `,
+  },
+  {
+    title: 'Step 2 — EC2 인스턴스 생성 + Instance Profile 자동 부착',
+    body: () => `
+      <p>EB가 EC2 인스턴스를 생성할 때 지정된 Instance Profile을 자동으로 부착한다.</p>
+      <p>동시에 EC2 하이퍼바이저가 <strong>IMDS(Instance Metadata Service)</strong>를
+      <code>169.254.169.254</code>에 자동으로 제공한다. 별도 설치나 설정 없이 모든 EC2에 내장된다.</p>
+    `,
+  },
+  {
+    title: 'Step 3 — SDK Credential Chain 탐색',
+    body: () => `
+      <p>앱이 AWS SDK를 초기화할 때 <code>DefaultCredentialsProvider</code>가
+      아래 순서로 자격증명을 탐색한다. 하나라도 발견되면 탐색을 중단한다.</p>
+      <div class="chain-list">
+        <div class="chain-item fail">❌ &nbsp;① 환경변수 — AWS_ACCESS_KEY_ID 없음</div>
+        <div class="chain-item fail">❌ &nbsp;② ~/.aws/credentials 파일 — EC2에 없음</div>
+        <div class="chain-item fail">❌ &nbsp;③ SSO 캐시 — 로컬 개발환경 전용</div>
+        <div class="chain-item pass">✅ &nbsp;④ IMDS (169.254.169.254) — 발견!</div>
+      </div>
+      <p>EC2 환경에서는 환경변수나 파일 기반 자격증명을 주입할 필요가 없다.</p>
+    `,
+  },
+  {
+    title: 'Step 4 — IMDSv2 세션 토큰 획득',
+    body: () => `
+      <p>SDK가 IMDS에 접근하기 전 반드시 세션 토큰을 먼저 획득한다 (IMDSv2 강제).</p>
+      <div class="imds-compare">
+        <div class="imds-box v1">
+          <strong>IMDSv1 (구버전)</strong>
+          단순 GET 요청만으로 메타데이터 접근<br/>
+          SSRF 공격 취약 — 악성 코드가 서버를 통해 자격증명 탈취 가능
+        </div>
+        <div class="imds-box v2">
+          <strong>IMDSv2 (현재)</strong>
+          PUT + <code>X-aws-ec2-metadata-token-ttl-seconds</code> 헤더 필수<br/>
+          브라우저/SSRF는 PUT 불가 → 공격 차단. TTL: 6시간
+        </div>
+      </div>
+      <p style="font-size:12px;color:var(--color-text-tertiary);">
+        <code>PUT http://169.254.169.254/latest/api/token</code><br/>
+        반환: <code>gQoXX...base64token</code>
+      </p>
+    `,
+  },
+  {
+    title: 'Step 5 — 임시 자격증명 획득',
+    body: () => `
+      <p>SDK가 세션 토큰을 헤더에 포함하여 IMDS에서 임시 자격증명을 조회한다.
+      IMDS는 내부적으로 STS에 AssumeRole을 호출하여 자격증명을 반환한다.</p>
+      <pre class="json-preview">{
+  "AccessKeyId":     "ASIA...",
+  "SecretAccessKey": "wJalrX...",
+  "Token":           "IQoXX...",
+  "Expiration":      "2026-03-30T09:00:00Z"  // ~6시간
+}</pre>
+      <p style="font-size:12px;color:var(--color-text-tertiary);">
+        GET /latest/meta-data/iam/security-credentials/NeoventuresAppServiceRole
+      </p>
+    `,
+  },
+  {
+    title: 'Step 6 — AWS API 호출 + 자동 갱신',
+    body: () => `
+      <p>SDK가 임시 자격증명을 사용하여 S3, SNS, CloudWatch 등의 AWS 서비스를 호출한다.
+      앱 코드에서 자격증명을 직접 다룰 필요가 없다.</p>
+      <p><strong>자동 갱신:</strong> SDK가 만료 시간을 추적하여 만료 <em>전</em>에
+      Step 4~5를 자동으로 반복한다. 앱이 재시작되거나 개발자가 개입할 필요가 없다.</p>
+      <p style="font-size:12px;color:var(--color-text-success);">
+        ✓ 장기 자격증명(Access Key) 없음 &nbsp;|&nbsp;
+        ✓ 환경변수 주입 불필요 &nbsp;|&nbsp;
+        ✓ 만료 자동 처리
+      </p>
+    `,
+  },
+];
+
+// ══════════════════════════════════════════════════════
+// STATE
+// ══════════════════════════════════════════════════════
+let currentStep = 1;
+
+// ══════════════════════════════════════════════════════
+// RENDERER
+// ══════════════════════════════════════════════════════
+function render(step) {
+  // Update nodes opacity
+  ALL_NODES.forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const isActive = (STEP_ACTIVE_NODES[step] || []).includes(id);
+    el.style.opacity = isActive ? '1' : '0.18';
+  });
+
+  // Update arrows
+  ALL_ARROWS.forEach((id, idx) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const arrowStep = idx + 1;
+    el.style.opacity = arrowStep === step ? '1' : '0';
+  });
+
+  // Update info panel
+  const stepData = STEPS[step - 1];
+  document.getElementById('step-label').textContent = `Step ${step} / ${TOTAL_STEPS}`;
+  document.getElementById('info-title').textContent = stepData.title;
+  document.getElementById('info-body').innerHTML = stepData.body();
+  document.getElementById('step-counter').textContent = `${step} / ${TOTAL_STEPS}`;
+
+  // Button states
+  document.getElementById('btn-prev').disabled = step === 1;
+  document.getElementById('btn-next').disabled = step === TOTAL_STEPS;
+}
+
+// ══════════════════════════════════════════════════════
+// EVENT HANDLERS
+// ══════════════════════════════════════════════════════
+document.getElementById('btn-next').addEventListener('click', () => {
+  if (currentStep < TOTAL_STEPS) {
+    currentStep++;
+    render(currentStep);
+  }
+});
+
+document.getElementById('btn-prev').addEventListener('click', () => {
+  if (currentStep > 1) {
+    currentStep--;
+    render(currentStep);
+  }
+});
+
+document.getElementById('btn-reset').addEventListener('click', () => {
+  currentStep = 1;
+  render(currentStep);
+});
+
+// ══════════════════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════════════════
+render(currentStep);
+</script>
+</body>
+</html>
